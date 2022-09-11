@@ -17,7 +17,7 @@ class DataSource(ABC):
 
         It is imperative to note that this function will be called on a background thread and clients should use
         appropriate synchronization or event loop message relaying to delegate these events to a main thread. Note that
-        a trampoline function or lambda that calls a Tk.after(0, function-_or_lambda) message to relay the message to
+        a trampoline function or lambda that calls a Tk.after(0, function_or_lambda) message to relay the message to
         the GUI thread is sufficient: https://docs.python.org/3/library/tkinter.html#threading-model """
         self._stopped = False
         self.callback_function = callback_function

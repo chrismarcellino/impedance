@@ -1,5 +1,6 @@
 # impedance.py
 __version__ = '0.1'
+
 import sys
 import argparse
 import tkinter as tk
@@ -7,6 +8,12 @@ import tkinter as tk
 from AnalogDiscoveryDataSource import AnalogDiscoveryDataSource
 from FileDataSource import FileDataSource
 from GUI import create_gui
+
+
+def data_callback(t, v):
+    # TODO: MAKE A CLASS TO RECEIVE THIS DATA AND PASS IT AS AN ARGUMENT INTO THIS LAMBDA TO AVOID GLOBAL STATE,
+    #  AND DO STUFF WITH THE DATA OF COURSE
+    print(t, v)
 
 
 if __name__ == "__main__":
@@ -52,7 +59,7 @@ if __name__ == "__main__":
 
     # Start the data collection/replay and the run loop. Use a lambda to invoke this on the main thread.
     # See the comment in DataSource.start_data().
-    source.start_data(lambda t, v: ws.after(0, todo_callback_function(t, v)))  # TODO: MAKE A CLASS TO RECEIVE THIS DATA
+    source.start_data(lambda t, v: ws.after(0, data_callback(t, v)))
     ws.mainloop()
     if file:
         file.close()
