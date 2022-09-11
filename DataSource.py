@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 
 
 class DataSource(ABC):
-
     def __init__(self):
         self.callback_function = None
         self._stopped = True

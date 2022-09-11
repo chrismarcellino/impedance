@@ -7,13 +7,8 @@ import tkinter as tk
 
 from AnalogDiscoveryDataSource import AnalogDiscoveryDataSource
 from FileDataSource import FileDataSource
-from GUI import create_gui
-
-
-def data_callback(t, v):
-    # TODO: MAKE A CLASS TO RECEIVE THIS DATA AND PASS IT AS AN ARGUMENT INTO THIS LAMBDA TO AVOID GLOBAL STATE,
-    #  AND DO STUFF WITH THE DATA OF COURSE
-    print(t, v)
+from DataProcessor import DataProcessor
+from GUI import GUI
 
 
 if __name__ == "__main__":
@@ -52,14 +47,21 @@ if __name__ == "__main__":
         # Open the oscilloscope source, optionally saving the recording
         source = AnalogDiscoveryDataSource(file)
 
-    # In order to unify the run loop, we use the Tkinter run loop regardless of whether a GUI is actually shown
-    ws = tk.Tk()
+    # In order to unify the run loop dependent code, we use the Tkinter run loop regardless of whether a GUI
+    # is actually shown since it is about as official of a Python run loop as can be found
+    tk_container = tk.Tk()
+    gui = None
     if not args.no_gui:
-        create_gui(ws)
+        gui = GUI()
+        gui.create_gui(tk_container)
 
-    # Start the data collection/replay and the run loop. Use a lambda to invoke this on the main thread.
-    # See the comment in DataSource.start_data().
-    source.start_data(lambda t, v: ws.after(0, data_callback(t, v)))
-    ws.mainloop()
+    # Create the data processing class
+    data_processor: DataProcessor = DataProcessor()
+
+    # Start the data collection/replay. Invoke the callback on the main thread. See comment in DataSource.start_data().
+    source.start_data(lambda t, v: tk_container.after(0, data_processor.data_callback(t, v)))
+    # Start the run loop
+    tk_container.mainloop()
+
     if file:
         file.close()
