@@ -10,7 +10,7 @@ class AnalogDiscoveryDataSource(DataSource):
         super.__init__(self)
         self._dwf = None
         self._outputFile = output_file
-        self._deviceHandle = ctypes.c_int(0)
+        self._deviceHandle = ctypes.c_int(hdwfNone.value)
         self._deviceName = ""
         self.load_library()
 
@@ -35,8 +35,8 @@ class AnalogDiscoveryDataSource(DataSource):
             assert (app_path, "WaveForms.app not found")
 
             # Prefer the system standard folders first, then as a last resort, use the framework bundled with the app
-            # based on the manufacturer.'s convention though in general the one bundled in the app will be the one used
-            # since it makes it so the framework doesn't need to be installed nor updated separately
+            # based on the manufacturer's convention; though in general the one bundled in the app will be the one used
+            # by most users as it makes it so the framework doesn't need to be installed nor updated separately
             framework_suffix = "/Frameworks/dwf.framework/dwf"
             lib_paths = ["/Library" + framework_suffix,
                          "~/Library" + framework_suffix,
@@ -57,14 +57,20 @@ class AnalogDiscoveryDataSource(DataSource):
         # import constants
         sys.path.append(constants_path)
         import dwfconstants as constants
-
-    def open_device(self):
-        # This is the device handle - it will be used by all functions to "address" the connected device.
-        # Connect to the first available device.
-        self._dwf.FDwfDeviceOpen(ctypes.c_int(-1), ctypes.byref(self._deviceHandle))
+        
+        # log the path and version
+        version = create_string_buffer(32)
+        dwf.FDwfGetVersion(version)
+        print("Loaded DWF framework v" + str(version.value))
 
     def start_data(self, callback_function):
-        pass
+        # Open the first available device and store the device handle
+        self._dwf.FDwfDeviceOpen(ctypes.c_int(-1), ctypes.byref(self._deviceHandle))
+        if self._deviceHandle.value == hdwfNone.value:
+            szerr = create_string_buffer(512)
+            dwf.FDwfGetLastErrorMsg(szerr)
+            print("Failed to open DWF device:" + str(szerr.value))
+
 
     def stop_data(self):
         pass
