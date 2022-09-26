@@ -1,31 +1,31 @@
 # AnalogDiscoveryDataSource.py
-import DataSource
+from DataSource import DataSource
+from FileDataSource import FileDataSource
 import sys
 import os
 import time
 from threading import Lock, Thread
 from dwfconstants import *
-from FileDataSource import FileDataSource
 
 
 class AnalogDiscoveryDataSource(DataSource):
     SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
-    MEASUREMENT_FREQUENCY = 100e3  # stimulus (not polling) frequency in hz
-    POLLING_FREQUENCY = 1e3  # polling (not stimulus) frequency in hz)
+    MEASUREMENT_FREQUENCY = 100e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
+    POLLING_FREQUENCY = 1e3  # polling frequency (in hz) that determines how often the impedance above is measured
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
     SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
-    # do not use more than 1 mV on the DUT arm in human subjects with intact skin at 100kHz
-    MINIMUM_PERIODS_TO_CAPTURE = 32
+    # do not use more than 1 mV on the DUT in human subjects with intact skin at 100kHz (total voltage may be higher)
+    MINIMUM_PERIODS_TO_CAPTURE = 32     # to average
 
     C_INT_TRUE = c_int(1)
-    C_INT_FALSE = c_int(1)
+    C_INT_FALSE = c_int(0)
 
     # Framework variables
     dwf = None  # the dynamically loaded framework class
     dwf_loading_lock = Lock()
 
     def __init__(self, output_file=None):
-        super.__init__(self)
+        super().__init__()
         self._outputFile = output_file
         self.load_library()
 
@@ -34,7 +34,7 @@ class AnalogDiscoveryDataSource(DataSource):
         try:
             if not self.dwf:
                 self.dwf = self._load_library()
-                assert (self.dwf, "Failed to load DWF Framework")
+                assert self.dwf, "Failed to load DWF Framework"
         finally:
             self.dwf_loading_lock.release()
 
@@ -56,7 +56,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 if os.path.isdir(path):
                     app_path = path
                     break
-            assert (app_path, "WaveForms.app not found")
+            assert app_path, "WaveForms.app not found"
 
             # Prefer the system standard folders first, then as a last resort, use the framework bundled with the app
             # based on the manufacturer's convention; though in general the one bundled in the app will be the one used
@@ -70,7 +70,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 if os.path.isdir(path):
                     lib_path = path
                     break
-            assert (lib_path, "WaveForms framework not found")
+            assert lib_path, "WaveForms framework not found"
             dwf = cdll.LoadLibrary(lib_path)
         else:
             # on Linux or other Unix
@@ -79,11 +79,11 @@ class AnalogDiscoveryDataSource(DataSource):
         # log the path and version
         version = create_string_buffer(32)
         dwf.FDwfGetVersion(version)
-        print("Loaded DWF framework v" + str(version.value))
+        print("Loaded DWF framework v", version.value)
         return dwf
 
     def start_data(self, callback_function):
-        super().start_data(self, callback_function)
+        super().start_data(callback_function)
         # Spawn a background thread to poll the hardware source
         Thread(target=self._polling_thread, name="analog_discovery_source_iterator_thread").start()
 
@@ -92,11 +92,10 @@ class AnalogDiscoveryDataSource(DataSource):
         # Open the first available device and store the device handle
         device_handle = c_int(hdwfNone.value)
         dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
-        if self._deviceHandle.value == hdwfNone.value:
+        if device_handle.value == hdwfNone.value:
             error_string = create_string_buffer(512)
             dwf.FDwfGetLastErrorMsg(error_string)
-            print("Failed to open DWF device: " + str(error_string.value))
-            assert False
+            assert False, ("Failed to open DWF device: " + str(error_string.value))
 
         # Begin polling for events
         dwf.FDwfAnalogImpedanceReset(device_handle)
@@ -136,7 +135,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 # hardware error
                 error_string = create_string_buffer(512)
                 dwf.FDwfGetLastErrorMsg(error_string)
-                print("Failed to query device: " + str(error_string.value))
+                print("Failed to query device: ", error_string.value)
                 assert False
             elif status.value == DwfStateDone:
                 # The sample is ready. Retrieve it and call the callback function.
@@ -147,6 +146,6 @@ class AnalogDiscoveryDataSource(DataSource):
                 if self._outputFile:
                     FileDataSource.append_time_value_pair_to_file(next_sample_time, impedance, self._outputFile)
             else:
-                print("Sample not ready (DwfState status code: " + str(status.value) + ")")
+                print("Sample not ready (DwfState status code: ", status.value, ")")
 
         dwf.FDwfAnalogImpedanceConfigure(device_handle, self.C_INT_FALSE)  # stop the analysis

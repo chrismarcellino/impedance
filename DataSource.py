@@ -21,7 +21,6 @@ class DataSource(ABC):
         self._stopped = False
         self.callback_function = callback_function
 
-    @abstractmethod
     def stop_data(self):
         self._stopped = True
         self._callback_function = None

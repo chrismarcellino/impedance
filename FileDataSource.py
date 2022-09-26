@@ -2,7 +2,7 @@
 import csv
 import time
 from threading import Thread
-import DataSource
+from DataSource import DataSource
 
 
 class FileDataSource(DataSource):
@@ -10,7 +10,7 @@ class FileDataSource(DataSource):
     VALUE_INDEX = 1
 
     def __init__(self, file):
-        super.__init__(self)
+        super().__init__()
         # deserialize the file
         self._index = 0
         self._startTime = None
@@ -26,7 +26,7 @@ class FileDataSource(DataSource):
             self._timeValuePairs.append(tuple(pair))
 
     def start_data(self, callback_function):
-        super().start_data(self, callback_function)
+        super().start_data(callback_function)
         self._startTime = time.time()
 
         # Spawn a background thread to simulate the thread-model of the hardware data source(s) to improve code coverage
@@ -45,8 +45,8 @@ class FileDataSource(DataSource):
             if not self.stopped:
                 self.callback_function(pair[0], pair[1])
 
-    @staticmethod
-    def append_time_value_pair_to_file(t, v, file):
+    @classmethod
+    def append_time_value_pair_to_file(cls, t, v, file):
         writer = csv.writer(file, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow([t, v])
         file.flush()
