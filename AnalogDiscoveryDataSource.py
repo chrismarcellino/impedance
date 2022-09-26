@@ -114,15 +114,14 @@ class AnalogDiscoveryDataSource(DataSource):
         # Start the analysis
         dwf.FDwfAnalogImpedanceConfigure(hdwf, C_INT_TRUE)
         start_time = time.time()
-        sample_number = 0
 
         # Poll the source until we are interrupted
         polling_period = 1.0 / POLLING_FREQUENCY  # from hz to seconds
+        sample_number = 0
         while not self.stopped:
             # Find the sleep interval
             dropped_sample = false
-            sleep_time = -1
-            while sleep_time < 0;
+            while sample_number == 0 or sleep_time < 0:
                 sample_number += 1
                 next_sample_time = start_time + polling_period * sample_number
                 sleep_time = next_sample_time - time.time()
