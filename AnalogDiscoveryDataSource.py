@@ -1,47 +1,46 @@
 # AnalogDiscoveryDataSource.py
 import DataSource
-import ctypes
 import sys
 import os
+import time
+from ctypes import *
+from threading import Lock, Thread
 
+# Framework variables
+dwf = None  # the dynamically loaded framework class
+dwf_loading_lock = Lock()
 
 class AnalogDiscoveryDataSource(DataSource):
-    SAMPLING_MODE = 8                           # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
-    MEASUREMENT_FREQUENCY = 100e3               # stimulus (not polling) frequency in hz
-    POLLING_FREQUENCY = 1e3                     # polling (not stimulus) frequency in hz)
-    REFERENCE_RESISTOR_RESISTANCE = 100         # in Ohms; may be ignore if AD IA adapter is used
-    SAMPLING_VOLTS = 1e-3                       # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
+    SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
+    MEASUREMENT_FREQUENCY = 100e3  # stimulus (not polling) frequency in hz
+    POLLING_FREQUENCY = 1e3  # polling (not stimulus) frequency in hz)
+    REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignore if AD IA adapter is used
+    SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mV on the DUT arm in human subjects with intact skin at 100kHz
     MINIMUM_PERIODS_TO_CAPTURE = 32
 
     C_INT_TRUE = c_int(1)
     C_INT_FALSE = c_int(1)
 
-    # Framework variables
-    dwf = None  # the dynamically loaded framework class
-    dwf_loading_lock = Lock()
-
     def __init__(self, output_file=None):
         super.__init__(self)
         self._outputFile = output_file
-        self._deviceHandle = ctypes.c_int(hdwfNone.value)
-        self._deviceName = ""
         self.load_library()
 
     def load_library(self):
         dwf_loading_lock.acquire()
         try:
             if not dwf:
-                _load_library()
-                assert(dwf, "Failed to load DWF Framework")
+                self._load_library()
+                assert (dwf, "Failed to load DWF Framework")
         finally:
-          dwf_loading_lock.release()
+            dwf_loading_lock.release()
 
     def _load_library(self):
         # load the dynamic library, get constants path (the path is OS specific)
         if sys.platform.startswith("win"):
             # on Windows
-            dwf = ctypes.cdll.dwf
+            dwf = cdll.dwf
             constants_path = "C:\\Program Files (x86)\\Digilent\\WaveFormsSDK\\samples\\py"
         elif sys.platform.startswith("darwin"):
             # on macOS; find the app path first
@@ -70,17 +69,17 @@ class AnalogDiscoveryDataSource(DataSource):
                     lib_path = path
                     break
             assert (lib_path, "WaveForms framework not found")
-            dwf = ctypes.cdll.LoadLibrary(lib_path)
+            dwf = cdll.LoadLibrary(lib_path)
             constants_path = app_path + "/Contents/Resources/SDK/samples/py"
         else:
             # on Linux or other Unix
-            dwf = ctypes.cdll.LoadLibrary("libdwf.so")
+            dwf = cdll.LoadLibrary("libdwf.so")
             constants_path = "/usr/share/digilent/waveforms/samples/py"
 
         # import constants
         sys.path.append(constants_path)
         import dwfconstants as constants
-        
+
         # log the path and version
         version = create_string_buffer(32)
         dwf.FDwfGetVersion(version)
@@ -95,28 +94,29 @@ class AnalogDiscoveryDataSource(DataSource):
 
     def _iterator_thread(self):
         # Open the first available device and store the device handle
-        dwf.FDwfDeviceOpen(ctypes.c_int(-1), ctypes.byref(self._deviceHandle))
+        deviceHandle = c_int(hdwfNone.value)
+        dwf.FDwfDeviceOpen(c_int(-1), byref(deviceHandle))
         if self._deviceHandle.value == hdwfNone.value:
             szerr = create_string_buffer(512)
             dwf.FDwfGetLastErrorMsg(szerr)
             print("Failed to open DWF device: " + str(szerr.value))
-            assert false
+            assert (False)
 
         # Begin polling for events
         dwf.FDwfAnalogImpedanceReset(hdwf)
-        dwf.FDwfAnalogImpedanceModeSet(hdwf, c_int(SAMPLING_MODE))
-        dwf.FDwfAnalogImpedanceReferenceSet(hdwf, c_double(REFERENCE_RESISTOR_RESISTANCE))
-        dwf.FDwfAnalogImpedanceFrequencySet(hdwf, c_double(MEASUREMENT_FREQUENCY))
-        dwf.FDwfAnalogImpedancePeriodSet(hdwf, c_int(MINIMUM_PERIODS_TO_CAPTURE))
-        dwf.FDwfAnalogImpedanceAmplitudeSet(hdwf, c_double(SAMPLING_VOLTS))
-        dwf.FDwfAnalogImpedanceOffsetSet(hdwf, c_double(0))     # no DC voltage
+        dwf.FDwfAnalogImpedanceModeSet(hdwf, c_int(self.SAMPLING_MODE))
+        dwf.FDwfAnalogImpedanceReferenceSet(hdwf, c_double(self.REFERENCE_RESISTOR_RESISTANCE))
+        dwf.FDwfAnalogImpedanceFrequencySet(hdwf, c_double(self.MEASUREMENT_FREQUENCY))
+        dwf.FDwfAnalogImpedancePeriodSet(hdwf, c_int(self.MINIMUM_PERIODS_TO_CAPTURE))
+        dwf.FDwfAnalogImpedanceAmplitudeSet(hdwf, c_double(self.SAMPLING_VOLTS))
+        dwf.FDwfAnalogImpedanceOffsetSet(hdwf, c_double(0))  # no DC voltage
 
         # Start the analysis
-        dwf.FDwfAnalogImpedanceConfigure(hdwf, C_INT_TRUE)
+        dwf.FDwfAnalogImpedanceConfigure(hdwf, self.C_INT_TRUE)
         start_time = time.time()
 
         # Poll the source until we are interrupted
-        polling_period = 1.0 / POLLING_FREQUENCY  # from hz to seconds
+        polling_period = 1.0 / self.POLLING_FREQUENCY  # convert from hz to seconds
         sample_number = 0
         while not self.stopped:
             # Find the sleep interval
@@ -131,7 +131,7 @@ class AnalogDiscoveryDataSource(DataSource):
             if dropped_sample:
                 print("Dropped sample at time: " + next_sample_time)
 
-            sleep(sleep_time)
+            time.sleep(sleep_time)
 
             # Query the hardware
             status = c_byte()
@@ -140,19 +140,20 @@ class AnalogDiscoveryDataSource(DataSource):
                 szerr = create_string_buffer(512)
                 dwf.FDwfGetLastErrorMsg(szerr)
                 print("Failed to query device: " + str(szerr.value))
-                assert false
-            elif if status.value == DwfStateDone:
+                assert (False)
+            elif status.value == DwfStateDone:
                 # The sample is ready. Retrieve it and call the callback function.
                 capacitance = c_double()
-                resistance = c_double()     # i.e. impedance
+                resistance = c_double()  # i.e. impedance
                 reactance = c_double()
                 dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceResistance, byref(resistance))
                 dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceReactance, byref(reactance))
                 dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceSeriesCapactance, byref(capacitance))
+                # notify the callback and optionally save the result to disk
                 self.callback_function(next_sample_time, resistance)
-                if write_to_file:
-                    append_time_value_pair_to_file()  # TODO
+                if self._outputFile:
+                    FileDataSource.append_time_value_pair_to_file(next_sample_time, resistance, self._outputFile)
             else:
-              print("Sample not ready (DwfState status code: " + status.value + ")")
+                print("Sample not ready (DwfState status code: " + status.value + ")")
 
-        dwf.FDwfAnalogImpedanceConfigure(hdwf, C_INT_FALSE)  # stop the analysis
+        dwf.FDwfAnalogImpedanceConfigure(hdwf, self.C_INT_FALSE)  # stop the analysis
