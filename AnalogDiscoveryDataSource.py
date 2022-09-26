@@ -143,8 +143,13 @@ class AnalogDiscoveryDataSource(DataSource):
                 assert false
             elif if status.value == DwfStateDone:
                 # The sample is ready. Retrieve it and call the callback function.
-                # TODO get impedance_value
-                self.callback_function(next_sample_time, impedance_value)
+                capacitance = c_double()
+                resistance = c_double()     # i.e. impedance
+                reactance = c_double()
+                dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceResistance, byref(resistance))
+                dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceReactance, byref(reactance))
+                dwf.FDwfAnalogImpedanceStatusMeasure(hdwf, DwfAnalogImpedanceSeriesCapactance, byref(capacitance))
+                self.callback_function(next_sample_time, resistance)
                 if write_to_file:
                     append_time_value_pair_to_file()  # TODO
             else:
