@@ -7,11 +7,15 @@ import os
 
 class AnalogDiscoveryDataSource(DataSource):
     SAMPLING_MODE = 8                           # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
-    SAMPLING_FREQUENCY = 100e3                  # in seconds
+    MEASUREMENT_FREQUENCY = 100e3               # stimulus (not polling) frequency in hz
+    POLLING_FREQUENCY = 1e3                     # polling (not stimulus) frequency in hz)
     REFERENCE_RESISTOR_RESISTANCE = 100         # in Ohms; may be ignore if AD IA adapter is used
     SAMPLING_VOLTS = 1e-3                       # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mV on the DUT arm in human subjects with intact skin at 100kHz
     MINIMUM_PERIODS_TO_CAPTURE = 32
+
+    C_INT_TRUE = c_int(1)
+    C_INT_FALSE = c_int(1)
 
     # Framework variables
     dwf = None  # the dynamically loaded framework class
@@ -83,29 +87,68 @@ class AnalogDiscoveryDataSource(DataSource):
         print("Loaded DWF framework v" + str(version.value))
 
     def start_data(self, callback_function):
+        super().start_data(self, callback_function)
+        self._startTime = time.time()
+
+        # Spawn a background thread to poll the hardware source
+        Thread(target=self._iterator_thread, name="analog_discovery_source_iterator_thread").start()
+
+    def _iterator_thread(self):
         # Open the first available device and store the device handle
         dwf.FDwfDeviceOpen(ctypes.c_int(-1), ctypes.byref(self._deviceHandle))
         if self._deviceHandle.value == hdwfNone.value:
             szerr = create_string_buffer(512)
             dwf.FDwfGetLastErrorMsg(szerr)
             print("Failed to open DWF device: " + str(szerr.value))
+            assert false
 
         # Begin polling for events
-        sts = c_byte()
-        frequecy = 1e5
-        reference = 1e5
-
-        print("Reference: " + str(reference) + " Ohm  Frequency: " + str(
-            frequecy / 1e3) + " kHz for picofarad capacitors")
         dwf.FDwfAnalogImpedanceReset(hdwf)
         dwf.FDwfAnalogImpedanceModeSet(hdwf, c_int(SAMPLING_MODE))
         dwf.FDwfAnalogImpedanceReferenceSet(hdwf, c_double(REFERENCE_RESISTOR_RESISTANCE))
-        dwf.FDwfAnalogImpedanceFrequencySet(hdwf, c_double(SAMPLING_FREQUENCY))
+        dwf.FDwfAnalogImpedanceFrequencySet(hdwf, c_double(MEASUREMENT_FREQUENCY))
         dwf.FDwfAnalogImpedancePeriodSet(hdwf, c_int(MINIMUM_PERIODS_TO_CAPTURE))
         dwf.FDwfAnalogImpedanceAmplitudeSet(hdwf, c_double(SAMPLING_VOLTS))
         dwf.FDwfAnalogImpedanceOffsetSet(hdwf, c_double(0))     # no DC voltage
 
-        dwf.FDwfAnalogImpedanceConfigure(hdwf, c_int(1))  # start the analysis
+        # Start the analysis
+        dwf.FDwfAnalogImpedanceConfigure(hdwf, C_INT_TRUE)
+        start_time = time.time()
+        sample_number = 0
 
-    def stop_data(self):
-        dwf.FDwfAnalogImpedanceConfigure(hdwf, c_int(0))  # stop the analysis
+        # Poll the source until we are interrupted
+        polling_period = 1.0 / POLLING_FREQUENCY  # from hz to seconds
+        while not self.stopped:
+            # Find the sleep interval
+            dropped_sample = false
+            sleep_time = -1
+            while sleep_time < 0;
+                sample_number += 1
+                next_sample_time = start_time + polling_period * sample_number
+                sleep_time = next_sample_time - time.time()
+                # skip any polling more than one period out of date to allow for easier debugging.,
+                # should not occur normally unless there are insufficient hardware resources, etc.
+                dropped_sample |= sleep_time < 0
+            if dropped_sample:
+                print("Dropped sample at time: " + next_sample_time)
+
+            sleep(sleep_time)
+
+            # Query the hardware
+            status = c_byte()
+            if not dwf.FDwfAnalogImpedanceStatus(hdwf, byref(status)):
+                # hardware error
+                szerr = create_string_buffer(512)
+                dwf.FDwfGetLastErrorMsg(szerr)
+                print("Failed to query device: " + str(szerr.value))
+                assert false
+            elif if status.value == DwfStateDone:
+                # The sample is ready. Retrieve it and call the callback function.
+                # TODO get impedance_value
+                self.callback_function(next_sample_time, impedance_value)
+                if write_to_file:
+                    append_time_value_pair_to_file()  # TODO
+            else:
+              print("Sample not ready (DwfState status code: " + status.value + ")")
+
+        dwf.FDwfAnalogImpedanceConfigure(hdwf, C_INT_FALSE)  # stop the analysis
