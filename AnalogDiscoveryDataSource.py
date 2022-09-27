@@ -67,7 +67,7 @@ class AnalogDiscoveryDataSource(DataSource):
                          app_path + "/Contents" + framework_suffix]
             lib_path = None
             for path in lib_paths:
-                if os.path.isdir(path):
+                if os.path.isfile(path):
                     lib_path = path
                     break
             assert lib_path, "WaveForms framework not found"
