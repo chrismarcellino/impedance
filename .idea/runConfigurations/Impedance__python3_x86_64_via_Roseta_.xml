@@ -12,7 +12,8 @@
     <option name="EXECUTE_IN_TERMINAL" value="true" />
     <option name="EXECUTE_SCRIPT_FILE" value="false" />
     <envs>
-      <env name="TK_SILENCE_DEPRECATION" value="1 " />
+      <env name="TK_SILENCE_DEPRECATION" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <method v="2" />
   </configuration>

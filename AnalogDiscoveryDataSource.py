@@ -9,6 +9,7 @@ from dwfconstants import *
 
 
 class AnalogDiscoveryDataSource(DataSource):
+    # Constants
     SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
     MEASUREMENT_FREQUENCY = 100e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
     POLLING_FREQUENCY = 1e3  # polling frequency (in hz) that determines how often the impedance above is measured
@@ -20,7 +21,7 @@ class AnalogDiscoveryDataSource(DataSource):
     C_INT_TRUE = c_int(1)
     C_INT_FALSE = c_int(0)
 
-    # Framework variables
+    # Framework (class) variables
     dwf = None  # the dynamically loaded framework class
     dwf_loading_lock = Lock()
 
@@ -29,17 +30,18 @@ class AnalogDiscoveryDataSource(DataSource):
         self._outputFile = output_file
         self.load_library()
 
-    def load_library(self):
-        self.dwf_loading_lock.acquire()
+    @classmethod
+    def load_library(cls):
+        cls.dwf_loading_lock.acquire()
         try:
-            if not self.dwf:
-                self.dwf = self._load_library()
-                assert self.dwf, "Failed to load DWF Framework"
+            if not cls.dwf:
+                cls.dwf = cls._load_library()
+                assert cls.dwf, "Failed to load DWF Framework"
         finally:
-            self.dwf_loading_lock.release()
+            cls.dwf_loading_lock.release()
 
-    @staticmethod
-    def _load_library():
+    @classmethod
+    def _load_library(cls):
         # load the dynamic library, get constants path (the path is OS specific)
         if sys.platform.startswith("win"):
             # on Windows
@@ -79,7 +81,7 @@ class AnalogDiscoveryDataSource(DataSource):
         # log the path and version
         version = create_string_buffer(32)
         dwf.FDwfGetVersion(version)
-        print("Loaded DWF framework v", version.value)
+        print("Loaded DWF framework version", version.value.decode("utf-8"))
         return dwf
 
     def start_data(self, callback_function):
@@ -87,15 +89,31 @@ class AnalogDiscoveryDataSource(DataSource):
         # Spawn a background thread to poll the hardware source
         Thread(target=self._polling_thread, name="analog_discovery_source_iterator_thread").start()
 
+    def _open_device(self):
+        # Open the first available device and store the device handle
+        device_handle = c_int(hdwfNone.value)
+        first_time = True
+        print("Connecting to Analog Discovery device.")
+        while True:
+            self.dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
+            if device_handle.value != hdwfNone.value:
+                print("Connected to Analog Discovery device with handle: ", device_handle.value)
+                break
+            else:
+                if first_time:
+                    error_string = create_string_buffer(512)
+                    self.dwf.FDwfGetLastErrorMsg(error_string)
+                    print("Failed to open Analog Discovery device. Error code:",
+                          error_string.value.decode("utf-8").splitlines())
+                    print("Awaiting device connection.")
+                    first_time = False
+                time.sleep(1)
+        return device_handle
+
     def _polling_thread(self):
         dwf = self.dwf      # typing convenience
         # Open the first available device and store the device handle
-        device_handle = c_int(hdwfNone.value)
-        dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
-        if device_handle.value == hdwfNone.value:
-            error_string = create_string_buffer(512)
-            dwf.FDwfGetLastErrorMsg(error_string)
-            assert False, ("Failed to open DWF device: " + str(error_string.value))
+        device_handle = self._open_device()
 
         # Begin polling for events
         dwf.FDwfAnalogImpedanceReset(device_handle)
@@ -136,7 +154,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 error_string = create_string_buffer(512)
                 dwf.FDwfGetLastErrorMsg(error_string)
                 print("Failed to query device: ", error_string.value)
-                assert False
+                exit(1)
             elif status.value == DwfStateDone:
                 # The sample is ready. Retrieve it and call the callback function.
                 impedance = c_double()
