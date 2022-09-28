@@ -16,7 +16,7 @@ class AnalogDiscoveryDataSource(DataSource):
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
     SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mV on the DUT in human subjects with intact skin at 100kHz (total voltage may be higher)
-    MINIMUM_PERIODS_TO_CAPTURE = 32     # to average
+    MINIMUM_PERIODS_TO_CAPTURE = 32  # to average
 
     C_INT_TRUE = c_int(1)
     C_INT_FALSE = c_int(0)
@@ -92,26 +92,26 @@ class AnalogDiscoveryDataSource(DataSource):
     def _open_device(self):
         # Open the first available device and store the device handle
         device_handle = c_int(hdwfNone.value)
-        first_time = True
-        print("Connecting to Analog Discovery device.")
+        last_error_string = None
         while True:
             self.dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
-            if device_handle.value != hdwfNone.value:
-                print("Connected to Analog Discovery device with handle: ", device_handle.value)
-                break
-            else:
-                if first_time:
-                    error_string = create_string_buffer(512)
-                    self.dwf.FDwfGetLastErrorMsg(error_string)
+            if device_handle.value == hdwfNone.value:
+                error_string = create_string_buffer(512)
+                self.dwf.FDwfGetLastErrorMsg(error_string)
+                if error_string.value != last_error_string:
                     print("Failed to open Analog Discovery device. Error code:",
                           error_string.value.decode("utf-8").splitlines())
-                    print("Awaiting device connection.")
-                    first_time = False
+                    print("Awaiting device connection")
+                    last_error_string = error_string.value
                 time.sleep(1)
+            else:
+                break
+
+        print("Connected to Analog Discovery device with handle:", device_handle.value)
         return device_handle
 
     def _polling_thread(self):
-        dwf = self.dwf      # typing convenience
+        dwf = self.dwf  # typing convenience
         # Open the first available device and store the device handle
         device_handle = self._open_device()
 
@@ -164,6 +164,6 @@ class AnalogDiscoveryDataSource(DataSource):
                 if self._outputFile:
                     FileDataSource.append_time_value_pair_to_file(next_sample_time, impedance, self._outputFile)
             else:
-                print("Sample not ready (DwfState status code: ", status.value, ")")
+                print("Sample not ready; DwfState status code:", status.value)
 
         dwf.FDwfAnalogImpedanceConfigure(device_handle, self.C_INT_FALSE)  # stop the analysis
