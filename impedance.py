@@ -19,9 +19,12 @@ def data_event_callback(t, v):      # main thread slot call back
     assert threading.current_thread() is threading.main_thread()
     # for the file source, a negative time will indicate the end of the file
     if t < 0:
-        app.exit(0)
-    data_processor.data_callback(t, v)
-    gui.data_callback(t, v)
+        print("End of data encountered.")
+        if not gui:
+            app.exit(0)
+    else:
+        data_processor.data_callback(t, v)
+        gui.data_callback(t, v)
 
 
 if __name__ == "__main__":
