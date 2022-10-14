@@ -10,3 +10,7 @@ class GUI:
         # TODO: implement real UI
         window = QWidget()
         window.show()
+
+    def data_callback(self, t, v):
+        #TODO draw stuff
+        pass

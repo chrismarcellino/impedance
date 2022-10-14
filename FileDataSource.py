@@ -12,11 +12,10 @@ class FileDataSource(DataSource):
     def __init__(self, file):
         super().__init__()
         # deserialize the file
-        self._index = 0
         self._startTime = None
 
-        # ensure this is a properly formatted file with rows of time-value pairs, and copy them out to a list for
-        # random access
+        # Ensure this is a properly formatted file with rows of time-value pairs, and copy them out to a list for
+        # random access.
         time_value_pairs_csv = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         self._timeValuePairs = []
         for pair in time_value_pairs_csv:
@@ -33,10 +32,9 @@ class FileDataSource(DataSource):
         Thread(target=self._iterator_thread, name="data_source_iterator_thread").start()
 
     def _iterator_thread(self):
-        for pair in self._timeValuePairs:
+        for i, pair in enumerate(self._timeValuePairs):
             # since this is a dedicated worker thread, just sleep until the next simulated polling time
-            original_time_offset_after_start = self._timeValuePairs[self._index][self.TIME_INDEX] - \
-                                               self._timeValuePairs[0][self.TIME_INDEX]
+            original_time_offset_after_start = pair[self.TIME_INDEX] - self._timeValuePairs[0][self.TIME_INDEX]
             sleep_until_time = self._startTime + original_time_offset_after_start
             sleep_duration = max(sleep_until_time - time.time(), 0)
             time.sleep(sleep_duration)
@@ -44,6 +42,11 @@ class FileDataSource(DataSource):
             # call the callback with the current pair
             if not self.stopped:
                 self.callback_function(pair[0], pair[1])
+
+        # Since we are out of data, send a final sentinel data pair mark our state as stopped. Don't change the state
+        # however since this is an inherent race condition and antipattern.
+        if not self.stopped:
+            self.callback_function(-1.0, 0.0)
 
     @classmethod
     def append_time_value_pair_to_file(cls, t, v, file):

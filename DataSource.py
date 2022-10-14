@@ -14,6 +14,10 @@ class DataSource(ABC):
         callback_function has two arguments, time and value, which specify the system relative timestamp in seconds and
         the measured impedance corresponding to the timestamp, respectively.
 
+        The FileDataSource will return a pair with a negative time (i.e. -1.0) at the end of the stream. Other data
+        sources may do the same in the event of a unrecoverable error however will generally just wait for further
+        input.
+
         It is imperative to note that this function will be called on a background thread and clients should use
         appropriate synchronization or event loop message relaying to delegate these events to a main thread. Note that
         a trampoline function or lambda that calls a Tk.after(0, function_or_lambda) message to relay the message to

@@ -17,8 +17,11 @@ from GUI import GUI
 @Slot(float, float)
 def data_event_callback(t, v):      # main thread slot call back
     assert threading.current_thread() is threading.main_thread()
+    # for the file source, a negative time will indicate the end of the file
+    if t < 0:
+        app.exit(0)
     data_processor.data_callback(t, v)
-    # TODO call GUI here as well;  could make these both slots alternatively
+    gui.data_callback(t, v)
 
 
 if __name__ == "__main__":
@@ -60,11 +63,12 @@ if __name__ == "__main__":
     # In order to unify the event loop dependent code, we use the Qt event loop regardless of whether a GUI
     # is actually shown since it is about as official of a Python run loop as can be found (given the ubiquity of Qt)
     # and the need to use it for UI instances as well. We make an Application to get the run loop.
+    gui: GUI = None
     if args.no_gui:
         app = QCoreApplication(sys.argv)
     else:
         app = QApplication(sys.argv)
-        gui: GUI = GUI()
+        gui = GUI()
         gui.create_gui()
 
     # Create the data processing class
