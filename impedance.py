@@ -3,12 +3,22 @@ __version__ = '0.1'
 
 import sys
 import argparse
-import tkinter as tk
+import threading
+
+from PySide6.QtCore import *
+from PySide6.QtWidgets import QApplication
 
 from AnalogDiscoveryDataSource import AnalogDiscoveryDataSource
 from FileDataSource import FileDataSource
 from DataProcessor import DataProcessor
 from GUI import GUI
+
+
+@Slot(float, float)
+def data_event_callback(t, v):      # main thread slot call back
+    assert threading.current_thread() is threading.main_thread()
+    data_processor.data_callback(t, v)
+    # TODO call GUI here as well;  could make these both slots alternatively
 
 
 if __name__ == "__main__":
@@ -47,21 +57,31 @@ if __name__ == "__main__":
         # Open the oscilloscope source, optionally saving the recording
         source = AnalogDiscoveryDataSource(file)
 
-    # In order to unify the run loop dependent code, we use the Tkinter run loop regardless of whether a GUI
-    # is actually shown since it is about as official of a Python run loop as can be found
-    tk_container = tk.Tk()
-    gui = None
-    if not args.no_gui:
-        gui = GUI()
-        gui.create_gui(tk_container)
+    # In order to unify the event loop dependent code, we use the Qt event loop regardless of whether a GUI
+    # is actually shown since it is about as official of a Python run loop as can be found (given the ubiquity of Qt)
+    # and the need to use it for UI instances as well. We make an Application to get the run loop.
+    if args.no_gui:
+        app = QCoreApplication(sys.argv)
+    else:
+        app = QApplication(sys.argv)
+        gui: GUI = GUI()
+        gui.create_gui()
 
     # Create the data processing class
     data_processor: DataProcessor = DataProcessor()
 
-    # Start the data collection/replay. Invoke the callback on the main thread. See comment in DataSource.start_data().
-    source.start_data(lambda t, v: tk_container.after(0, data_processor.data_callback(t, v)))
-    # Start the run loop
-    tk_container.mainloop()
+    # Create a signal
+    class DataEvent(QObject):
+        delivered = Signal(float, float)
+    data_event = DataEvent()
+    # Register for the signal (on the main thread)
+    data_event.delivered.connect(data_event_callback)
+    # Start the data collection/replay. The data source will call back on an arbitrary thread but the signal will
+    # be queued onto the main thread. See comment in DataSource.start_data().
+    source.start_data(data_event.delivered.emit)
 
-    if file:
+    # Start the event loop. This won't return until the GUI is closed or the event loop is exit.
+    ret = app.exec()
+    if file:            # for syntactical posterity; exiting will do the same
         file.close()
+    sys.exit(ret)

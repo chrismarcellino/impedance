@@ -17,7 +17,9 @@ class DataSource(ABC):
         It is imperative to note that this function will be called on a background thread and clients should use
         appropriate synchronization or event loop message relaying to delegate these events to a main thread. Note that
         a trampoline function or lambda that calls a Tk.after(0, function_or_lambda) message to relay the message to
-        the GUI thread is sufficient: https://docs.python.org/3/library/tkinter.html#threading-model """
+        the GUI thread is sufficient: https://docs.python.org/3/library/tkinter.html#threading-model otherwise in Qt
+        a signal will be required to be emitted via a Qt.QueuedConnection to a main thread, which will be automatically
+        used when a slot is fired from another thread in modern Qt versions."""
         self._stopped = False
         self.callback_function = callback_function
 
