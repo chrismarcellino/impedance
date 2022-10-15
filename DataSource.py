@@ -1,7 +1,6 @@
 # DataSource.py
 from abc import ABC, abstractmethod
 
-
 class DataSource(ABC):
     def __init__(self):
         self.callback_function = None
@@ -11,12 +10,11 @@ class DataSource(ABC):
     def start_data(self, callback_function):
         """Starts receiving events from the subclass source.
 
-        callback_function has two arguments, time and value, which specify the system relative timestamp in seconds and
-        the measured impedance corresponding to the timestamp, respectively.
+        callback_function has one argument, a TimeValueSample, which specify the system relative timestamp in seconds
+        and the measured impedance corresponding to the timestamp, respectively.
 
-        The FileDataSource will return a pair with a negative time (i.e. -1.0) at the end of the stream. Other data
-        sources may do the same in the event of a unrecoverable error however will generally just wait for further
-        input.
+        The FileDataSource will return a Null TimeValueSample at the end of the stream. Other data sources could do the
+        same in the event of an unrecoverable error however should generally just wait for further input.
 
         It is imperative to note that this function will be called on a background thread and clients should use
         appropriate synchronization or event loop message relaying to delegate these events to a main thread. Note that

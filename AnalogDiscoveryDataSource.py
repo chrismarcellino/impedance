@@ -1,4 +1,5 @@
 # AnalogDiscoveryDataSource.py
+from TimeValueSample import TimeValueSample
 from DataSource import DataSource
 from FileDataSource import FileDataSource
 import sys
@@ -160,7 +161,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 impedance = c_double()
                 dwf.FDwfAnalogImpedanceStatusMeasure(device_handle, DwfAnalogImpedanceResistance, byref(impedance))
                 # notify the callback and optionally save the result to disk
-                self.callback_function(next_sample_time, impedance)
+                self.callback_function(TimeValueSample(next_sample_time, impedance))
                 if self._outputFile:
                     FileDataSource.append_time_value_pair_to_file(next_sample_time, impedance, self._outputFile)
             else:

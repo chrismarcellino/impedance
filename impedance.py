@@ -8,6 +8,7 @@ import threading
 from PySide6.QtCore import *
 from PySide6.QtWidgets import QApplication
 
+from TimeValueSample import TimeValueSample
 from AnalogDiscoveryDataSource import AnalogDiscoveryDataSource
 from FileDataSource import FileDataSource
 from DataProcessor import DataProcessor
@@ -15,17 +16,17 @@ from GUI import GUI
 
 
 @Slot(float, float)
-def data_event_callback(t, v):      # main thread slot call back
+def data_event_callback(sample):      # main thread slot call back
     assert threading.current_thread() is threading.main_thread()
     # for the file source, a negative time will indicate the end of the file
-    if t < 0:
+    if sample:
+        data_processor.data_callback(sample)
+        if gui:
+            gui.data_callback(sample)
+    else:
         print("End of data encountered.")
         if not gui:
             app.exit(0)
-    else:
-        data_processor.data_callback(t, v)
-        if gui:
-            gui.data_callback(t, v)
 
 
 if __name__ == "__main__":
@@ -79,17 +80,18 @@ if __name__ == "__main__":
     data_processor: DataProcessor = DataProcessor()
 
     # Create a signal
-    class DataEvent(QObject):
-        delivered = Signal(float, float)
-    data_event = DataEvent()
+    class SampleDataEvent(QObject):
+        delivered = Signal(TimeValueSample)
+    data_event = SampleDataEvent()
     # Register for the signal (on the main thread)
     data_event.delivered.connect(data_event_callback)
     # Start the data collection/replay. The data source will call back on an arbitrary thread but the signal will
     # be queued onto the main thread. See comment in DataSource.start_data().
     source.start_data(data_event.delivered.emit)
 
-    # Start the event loop. This won't return until the GUI is closed or the event loop is exit.
+    # Start the event loop. This won't return until the GUI is closed or the app/event loop is otherwise exit.
     ret = app.exec()
+    source.stop_data()
     if file:            # for syntactical posterity; exiting will do the same
         file.close()
     sys.exit(ret)
