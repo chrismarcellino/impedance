@@ -24,7 +24,8 @@ def data_event_callback(t, v):      # main thread slot call back
             app.exit(0)
     else:
         data_processor.data_callback(t, v)
-        gui.data_callback(t, v)
+        if gui:
+            gui.data_callback(t, v)
 
 
 if __name__ == "__main__":
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     else:
         app = QApplication(sys.argv)
         gui = GUI()
-        gui.create_gui()
+        gui.showUI()
 
     # Create the data processing class
     data_processor: DataProcessor = DataProcessor()
