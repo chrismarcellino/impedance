@@ -27,25 +27,28 @@ class GUI:
         self.needs_redraw = False
         self.last_draw_time = None
 
-    def create_and_layout_plot_item(self, title=None, color=None, fft=False):
+    def create_and_layout_plot_item(self, title=None, color=None, absolute=False, fft=False):
         plot_item = self.layout.addPlot(title=title, enableMenu=False)
         self.layout.nextRow()
         # Disable interaction
         plot_item.getViewBox().setMouseEnabled(False, False)
         # Set the color and other options
         plot_data_item = plot_item.plot(pen=color)
+        if absolute:
+            plot_item.getViewBox().setYRange(0.0, 300)  # Disable Y scaling
         if fft:
             plot_data_item.setFftMode(True)
+            plot_data_item.setPen(pyqtgraph.mkPen(width=5, color=color))
             plot_data_item.setFillLevel(0)
+            plot_data_item.setFillBrush(pyqtgraph.mkBrush(color))
+            plot_item.getViewBox().setXRange(0.0, 100)  # Disable X scaling
         return plot_item
 
     def show_ui(self):
         # Make the plot
         cropped_plot = self.create_and_layout_plot_item("Cropped", color='red')
-        absolute_plot = self.create_and_layout_plot_item("Absolute", color='orange')
-        absolute_plot.getViewBox().setYRange(0.0, 300)     # Disable Y scaling
+        absolute_plot = self.create_and_layout_plot_item("Absolute", color='orange', absolute=True)
         fft_plot = self.create_and_layout_plot_item("Power Spectrum (FFT)", color='green', fft=True)
-        fft_plot.getViewBox().setXRange(0.0, 100)     # Disable X scaling
         # Set the plot arrays for iteration later
         self.plots = [cropped_plot, absolute_plot, fft_plot]
         self.plots_without_padding = [fft_plot]
@@ -67,7 +70,7 @@ class GUI:
 
             if self.last_draw_time:
                 next_draw_time = self.last_draw_time + self.MAX_REFRESH_RATE
-                delay = next_draw_time - time.time()
+                delay = max(next_draw_time - time.time(), 0.0)
             else:
                 delay = 0.0
 
