@@ -16,7 +16,7 @@ class GUI:
         self.layout = pyqtgraph.GraphicsLayout(border=(100, 100, 100))
         self.view.setCentralItem(self.layout)
         self.view.setWindowTitle('Impedance')
-        self.view.resize(800, 600)  # TODO persist last size? must be an automatic way to do so?
+        self.view.resize(900, 700)  # TODO persist last size? must be an automatic way to do so?
 
         # These are the plots, stacked vertically, in order from top to bottom.
         self.cropped_plot = None
@@ -28,17 +28,21 @@ class GUI:
         self.needs_redraw = False
         self.last_draw_time = None
 
-    def create_and_layout_line_plot(self, title):
-        new_plot = self.layout.addPlot(title=title)
-        new_plot.plot()
-        # Add it to the layout
+    def create_and_layout_line_plot(self, title, color):
+        plot = self.layout.addPlot(title=title)
+        plot.plot(pen=color)
+        # Disable interaction
+        plot.setMenuEnabled(False)
+        plot.getViewBox().setMouseEnabled(False, False)
+        # Add it to the layout horizontally (which in fact specifies this for the next plot)
         self.layout.nextRow()
-
-        return new_plot
+        return plot
 
     def show_ui(self):
-        self.cropped_plot = self.create_and_layout_line_plot("Cropped")
-        self.absolute_plot = self.create_and_layout_line_plot("Absolute")
+        # Make the plot
+        self.cropped_plot = self.create_and_layout_line_plot("Cropped", 'red')
+        self.absolute_plot = self.create_and_layout_line_plot("Absolute", 'orange')
+        self.absolute_plot.getViewBox().setYRange(0.0, 300)     # Disable Y scaling
 
         self.view.show()
         self.view.closeEvent = self.layout.closeEvent = lambda event: QApplication.instance().exit(0)
