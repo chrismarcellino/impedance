@@ -16,33 +16,39 @@ class GUI:
         self.layout = pyqtgraph.GraphicsLayout(border=(100, 100, 100))
         self.view.setCentralItem(self.layout)
         self.view.setWindowTitle('Impedance')
-        self.view.resize(900, 700)  # TODO persist last size? must be an automatic way to do so?
+        self.view.resize(900, 700)
 
         # These are the plots, stacked vertically, in order from top to bottom.
-        self.cropped_plot = None
-        self.absolute_plot = None
-        self.fft_plot = None  # TODO implement
+        self.plots = []
+        self.plots_without_padding = []
 
         # Data received in the past MAIN_PLOT_TIME_WIDTH seconds
         self.samples = []
         self.needs_redraw = False
         self.last_draw_time = None
 
-    def create_and_layout_line_plot(self, title, color):
-        plot = self.layout.addPlot(title=title)
-        plot.plot(pen=color)
-        # Disable interaction
-        plot.setMenuEnabled(False)
-        plot.getViewBox().setMouseEnabled(False, False)
-        # Add it to the layout horizontally (which in fact specifies this for the next plot)
+    def create_and_layout_plot_item(self, title=None, color=None, fft=False):
+        plot_item = self.layout.addPlot(title=title, enableMenu=False)
         self.layout.nextRow()
-        return plot
+        # Disable interaction
+        plot_item.getViewBox().setMouseEnabled(False, False)
+        # Set the color and other options
+        plot_data_item = plot_item.plot(pen=color)
+        if fft:
+            plot_data_item.setFftMode(True)
+            plot_data_item.setFillLevel(0)
+        return plot_item
 
     def show_ui(self):
         # Make the plot
-        self.cropped_plot = self.create_and_layout_line_plot("Cropped", 'red')
-        self.absolute_plot = self.create_and_layout_line_plot("Absolute", 'orange')
-        self.absolute_plot.getViewBox().setYRange(0.0, 300)     # Disable Y scaling
+        cropped_plot = self.create_and_layout_plot_item("Cropped", color='red')
+        absolute_plot = self.create_and_layout_plot_item("Absolute", color='orange')
+        absolute_plot.getViewBox().setYRange(0.0, 300)     # Disable Y scaling
+        fft_plot = self.create_and_layout_plot_item("Power Spectrum (FFT)", color='green', fft=True)
+        fft_plot.getViewBox().setXRange(0.0, 100)     # Disable X scaling
+        # Set the plot arrays for iteration later
+        self.plots = [cropped_plot, absolute_plot, fft_plot]
+        self.plots_without_padding = [fft_plot]
 
         self.view.show()
         self.view.closeEvent = self.layout.closeEvent = lambda event: QApplication.instance().exit(0)
@@ -72,19 +78,25 @@ class GUI:
         self.last_draw_time = time.time()
 
         # Generate the new data to draw, which may include pre-padding to keep uniformity
-        x_data = np.array([sample.t for sample in self.samples])
-        y_data = np.array([sample.v for sample in self.samples])
+        x_data_no_padding = np.array([sample.t for sample in self.samples])
+        y_data_no_padding = np.array([sample.v for sample in self.samples])
 
         data_duration = self.samples[-1].t - self.samples[0].t
         time_to_pad = self.MAIN_PLOT_TIME_WIDTH - data_duration
-        if time_to_pad > 0.0:
+        if time_to_pad > self.FILLER_TIME_PERIOD:
             filler_time_values = np.arange(self.samples[0].t - time_to_pad, self.samples[0].t, self.FILLER_TIME_PERIOD)
-            x_data = np.concatenate([x_data, filler_time_values])
+            x_data = np.concatenate([x_data_no_padding, filler_time_values])
             nans = np.empty(len(filler_time_values))
             nans[:] = np.nan
-            y_data = np.concatenate([y_data, nans])
+            y_data = np.concatenate([y_data_no_padding, nans])
             assert len(x_data) == len(y_data)
+        else:
+            x_data = x_data_no_padding
+            y_data = y_data_no_padding
 
-        for plot in [self.cropped_plot, self.absolute_plot]:
-            data_item = plot.listDataItems()[0]
-            data_item.setData(x_data, y_data)
+        for plot in self.plots:
+            for data_item in plot.listDataItems():
+                if plot in self.plots_without_padding:
+                    data_item.setData(x_data_no_padding, y_data_no_padding)
+                else:
+                    data_item.setData(x_data, y_data)
