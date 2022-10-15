@@ -6,5 +6,5 @@ class DataProcessor:
         pass
 
     def data_callback(self, t, v):
-        print("Received data at", t, "seconds, value:", v, flush=True)
+        print("Received data at %.3f seconds with value %.3f" % (t, v), flush=True)
         # TODO implement data processing
