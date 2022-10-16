@@ -1,10 +1,16 @@
 # DataSource.py
 from abc import ABC, abstractmethod
 
+
 class DataSource(ABC):
     def __init__(self):
         self.callback_function = None
         self._stopped = True
+
+    @abstractmethod
+    def expected_sampling_period(self):
+        """Returns the natural frequency of the datasource"""
+        pass
 
     @abstractmethod
     def start_data(self, callback_function):

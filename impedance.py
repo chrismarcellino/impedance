@@ -73,7 +73,7 @@ if __name__ == "__main__":
         app = QCoreApplication(sys.argv)
     else:
         app = QApplication(sys.argv)
-        gui = GUI()
+        gui = GUI(expected_sampling_period=source.expected_sampling_period())
         gui.show_ui()
 
     # Create the data processing class

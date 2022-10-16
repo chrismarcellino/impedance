@@ -4,14 +4,16 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import QApplication
 import pyqtgraph
 import numpy as np
+from TimeValueSample import TimeValueSampleQueue
 
 
 class GUI:
-    MAIN_PLOT_TIME_WIDTH = 10      # in seconds
-    FILLER_TIME_PERIOD = 0.001     # in seconds
-    MAX_REFRESH_RATE = 1.0 / 60.0  # in seconds
+    MAIN_PLOT_TIME_WIDTH = 10.0    # in seconds
+    MAX_REFRESH_RATE = 1.0 / 30.0  # in seconds
 
-    def __init__(self):
+    def __init__(self, expected_sampling_period):
+        self.expected_sampling_period = expected_sampling_period
+
         self.view = pyqtgraph.GraphicsView()
         self.layout = pyqtgraph.GraphicsLayout(border=(100, 100, 100))
         self.view.setCentralItem(self.layout)
@@ -23,7 +25,7 @@ class GUI:
         self.plots_without_padding = []
 
         # Data received in the past MAIN_PLOT_TIME_WIDTH seconds
-        self.samples = []
+        self.sample_queue = TimeValueSampleQueue(self.MAIN_PLOT_TIME_WIDTH)
         self.needs_redraw = False
         self.last_draw_time = None
 
@@ -57,11 +59,7 @@ class GUI:
         self.view.closeEvent = self.layout.closeEvent = lambda event: QApplication.instance().exit(0)
 
     def data_callback(self, sample):
-        # Store the data first, then trim any excess values
-        self.samples.append(sample)
-        while self.samples[-1].t - self.samples[0].t > self.MAIN_PLOT_TIME_WIDTH:
-            self.samples.pop(0)
-        # Mark the view as requiring redraw
+        self.sample_queue.push(sample)
         self.mark_needs_redraw()
 
     def mark_needs_redraw(self):
@@ -80,26 +78,23 @@ class GUI:
         self.needs_redraw = False
         self.last_draw_time = time.time()
 
-        # Generate the new data to draw, which may include pre-padding to keep uniformity
-        x_data_no_padding = np.array([sample.t for sample in self.samples])
-        y_data_no_padding = np.array([sample.v for sample in self.samples])
+        samples = self.sample_queue.get_samples()    #desired_period=self.expected_sampling_period)
+        t_data = t_data_no_padding = np.array([sample.t for sample in samples])
+        v_data = v_data_no_padding = np.array([sample.v for sample in samples])
 
-        data_duration = self.samples[-1].t - self.samples[0].t
+        # If, we do not have a full screen of data yet, pre-pad with np.nan as filler to maintain uniformity.
+        data_duration = samples[-1].t - samples[0].t
         time_to_pad = self.MAIN_PLOT_TIME_WIDTH - data_duration
-        if time_to_pad > self.FILLER_TIME_PERIOD:
-            filler_time_values = np.arange(self.samples[0].t - time_to_pad, self.samples[0].t, self.FILLER_TIME_PERIOD)
-            x_data = np.concatenate([x_data_no_padding, filler_time_values])
-            nans = np.empty(len(filler_time_values))
-            nans[:] = np.nan
-            y_data = np.concatenate([y_data_no_padding, nans])
-            assert len(x_data) == len(y_data)
-        else:
-            x_data = x_data_no_padding
-            y_data = y_data_no_padding
+        if time_to_pad > self.expected_sampling_period:
+            filler_time_values = np.arange(samples[0].t - time_to_pad, samples[0].t, self.expected_sampling_period)
+            t_data = np.concatenate([t_data_no_padding, filler_time_values])
+            nans = np.full(len(filler_time_values), np.nan)
+            v_data = np.concatenate([v_data_no_padding, nans])
+            assert len(t_data) == len(v_data)
 
         for plot in self.plots:
             for data_item in plot.listDataItems():
                 if plot in self.plots_without_padding:
-                    data_item.setData(x_data_no_padding, y_data_no_padding)
+                    data_item.setData(t_data_no_padding, v_data_no_padding)
                 else:
-                    data_item.setData(x_data, y_data)
+                    data_item.setData(t_data, v_data)

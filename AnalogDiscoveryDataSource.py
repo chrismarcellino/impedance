@@ -14,6 +14,7 @@ class AnalogDiscoveryDataSource(DataSource):
     SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
     MEASUREMENT_FREQUENCY = 100e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
     POLLING_FREQUENCY = 1e3  # polling frequency (in hz) that determines how often the impedance above is measured
+    POLLING_PERIOD = 1.0 / POLLING_FREQUENCY          # converted from hz to seconds
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
     SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mV on the DUT in human subjects with intact skin at 100kHz (total voltage may be higher)
@@ -85,6 +86,9 @@ class AnalogDiscoveryDataSource(DataSource):
         print("Loaded DWF framework version", version.value.decode("utf-8"))
         return dwf
 
+    def expected_sampling_period(self):
+        return self.POLLING_PERIOD
+
     def start_data(self, callback_function):
         super().start_data(callback_function)
         # Spawn a background thread to poll the hardware source
@@ -130,7 +134,7 @@ class AnalogDiscoveryDataSource(DataSource):
         start_time = time.time()
 
         # Poll the source until we are interrupted
-        polling_period = 1.0 / self.POLLING_FREQUENCY  # convert from hz to seconds
+        polling_period = self.POLLING_PERIOD
         sample_number, next_sample_time = 0, 0
         while not self.stopped:
             # Find the sleep interval
@@ -161,9 +165,10 @@ class AnalogDiscoveryDataSource(DataSource):
                 impedance = c_double()
                 dwf.FDwfAnalogImpedanceStatusMeasure(device_handle, DwfAnalogImpedanceResistance, byref(impedance))
                 # notify the callback and optionally save the result to disk
-                self.callback_function(TimeValueSample(next_sample_time, impedance))
+                sample = TimeValueSample(next_sample_time, impedance.value)
+                self.callback_function(sample)
                 if self._outputFile:
-                    FileDataSource.append_time_value_pair_to_file(next_sample_time, impedance, self._outputFile)
+                    FileDataSource.append_time_value_pair_to_file(sample, self._outputFile)
             else:
                 print("Sample not ready; DwfState status code:", status.value)
 
