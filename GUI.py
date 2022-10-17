@@ -108,7 +108,7 @@ class GUI(GraphicalDebuggingDelegate):
             for plot in self.plots:
                 assert len(queues) == len(plot.listDataItems()), "mismatch in queues and data items"
                 data_item = plot.listDataItems()[i]
-                if plot in self.plots_without_padding:
+                if i != 0 or plot in self.plots_without_padding:
                     data_item.setData(t_data, v_data)
                 else:
                     data_item.setData(*self.pad_samples(t_data, v_data, time_to_pad))
@@ -132,12 +132,15 @@ class GUI(GraphicalDebuggingDelegate):
 
     def pad_samples(self, t_data, v_data, time_to_pad):
         if time_to_pad > self.expected_sampling_period:
-            filler_time_values = np.arange(t_data[0] - time_to_pad, t_data[0], self.expected_sampling_period)
-            t_data = np.concatenate([t_data, filler_time_values])
+            # we must use np.linspace instead of np.arange to avoid OBO errors due to float precision
+            filler_time_values = np.linspace(t_data[0] - time_to_pad,
+                                             t_data[0],
+                                             round(time_to_pad / self.expected_sampling_period),
+                                             endpoint=False)
+            t_data = np.concatenate([filler_time_values, t_data])
             nans = np.full(len(filler_time_values), np.nan)
-            v_data = np.concatenate([v_data, nans])
+            v_data = np.concatenate([nans, v_data])
             assert len(t_data) == len(v_data)
-            # TODO: LENGTHS ARE OBO TO HIGH???
 
         return t_data, v_data
 
