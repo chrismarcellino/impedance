@@ -49,7 +49,7 @@ class TimeValueSampleQueue:
 
         resample = True
         # See if we can stay on the fast path (if dropped nor extra samples) based on the average error
-        if len(aligned_times) == len(self._queue):  # TODO ENSURE THAT ALL MISSES HERE ARE NOT BUGS! HIGH RISK OF OBOE
+        if len(aligned_times) == len(self._queue):
             average_error = np.mean(np.subtract(aligned_times, times))
             # in this case, correct the aligned times to more closely match the actual (as opposed to canonical times)
             aligned_times = np.subtract(times, average_error)
