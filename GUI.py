@@ -83,7 +83,7 @@ class GUI(GraphicalDebuggingDelegate):
                 delay = max(next_draw_time - time.time(), 0.0)
             else:
                 delay = 0.0
-            QTimer.singleShot(delay * 1e3, self.redraw)  # QTimer accepts milliseconds
+            QTimer.singleShot(int(delay * 1e3), self.redraw)  # QTimer accepts milliseconds
 
     def redraw(self):
         assert len(self.plots) > 0, "must create plots before drawing"
