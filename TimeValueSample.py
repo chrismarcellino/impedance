@@ -14,8 +14,8 @@ class TimeValueSample:
     # reserved: object = None
 
     # Produce a copy of TimeValueSample copying any future reserved state/metadata.
-    def copy_with_time(self, new_t, new_v=None):
-        return TimeValueSample(new_t, new_v if new_v else self.v)
+    def copy_with(self, new_time=None, new_value=None):
+        return TimeValueSample(new_time if new_time else self.t, new_value if new_value else self.v)
 
 
 class TimeValueSampleQueue:
@@ -76,7 +76,7 @@ class TimeValueSampleQueue:
 
         # Generate the result sample list, using the uniform times
         result = []
-        if resample:
+        if resample or True:
             # This may be expensive. Attempt to align the data to the nearest original sample to preserve any metadata.
             values = np.array([sample.v for sample in self._queue])
             resampled_times_values_tuple = scipy.signal.resample(values, num_samples, times)
@@ -87,13 +87,13 @@ class TimeValueSampleQueue:
                     # This should be uncommon as this would indicate extra samples
                     queue.popleft()
                 if len(queue) > 0 and queue[0].t < t + desired_period / 2.0:
-                    aligned_sample = queue.popleft().copy_with_time(t, v)
+                    aligned_sample = queue.popleft().copy_with(t, v)
                 else:
                     aligned_sample = TimeValueSample(t, v)
                 result.append(aligned_sample)
         else:
             for aligned_time, sample in zip(aligned_times, self._queue):
-                aligned_sample = sample.copy_with_time(aligned_time)
+                aligned_sample = sample.copy_with(new_time=aligned_time)
                 result.append(aligned_sample)
 
         return result

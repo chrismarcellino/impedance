@@ -4,10 +4,11 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import QApplication
 import pyqtgraph
 import numpy as np
+from DataProcessor import GraphicalDebuggingDelegate
 from TimeValueSample import TimeValueSampleQueue
 
 
-class GUI:
+class GUI(GraphicalDebuggingDelegate):
     MAIN_PLOT_TIME_WIDTH = 10.0    # in seconds
     MAX_REFRESH_RATE = 1.0 / 30.0  # in seconds
 
@@ -98,3 +99,7 @@ class GUI:
                     data_item.setData(t_data_no_padding, v_data_no_padding)
                 else:
                     data_item.setData(t_data, v_data)
+
+    def graph_intermediate_sample_data(self, sample, data_index, label=None):
+        # TODO GRAPH onto existing graph
+        pass
