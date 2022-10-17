@@ -78,7 +78,7 @@ class GUI:
         self.needs_redraw = False
         self.last_draw_time = time.time()
 
-        samples = self.sample_queue.copy_samples(desired_period=self.expected_sampling_period)
+        samples = self.sample_queue.copy_samples()      # don't pass a period since we want to draw the raw data
         t_data = t_data_no_padding = np.array([sample.t for sample in samples])
         v_data = v_data_no_padding = np.array([sample.v for sample in samples])
 

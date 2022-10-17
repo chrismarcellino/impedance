@@ -5,9 +5,9 @@ import scipy
 from dataclasses import dataclass
 
 
-# Common immutable sample data structure, for future extensibility (i.e. metadata, comments, etc.)
 @dataclass(frozen=True)
 class TimeValueSample:
+    """Common immutable sample data structure, for future extensibility (i.e. metadata, comments, etc.)"""
     t: float
     v: float
 
@@ -18,13 +18,18 @@ class TimeValueSample:
         return TimeValueSample(new_t, new_v if new_v else self.v)
 
 
-# Stores a queue of samples with an (approximately) fixed period, discarding any excess (i.e. oversampled)
-# values, and optionally filling any blank sample periods with values of numpy.nan. Only the most recent 'duration'
-# (in seconds) samples are stored. When resampling occurs, not all sample metadata (if any exists) may be preserved.
 class TimeValueSampleQueue:
+    """
+    Stores a queue of samples with an (approximately) fixed period, discarding any excess (i.e. oversampled)
+    values, and optionally filling any blank sample periods with values of numpy.nan. Only the most recent 'duration'
+    (in seconds) samples are stored. When resampling occurs, not all sample metadata (if any exists) may be
+    preserved. Metadata preservation is guaranteed when copy_samples() 'desired_period' is None.
+    """
+
     def __init__(self, duration):
         self._duration = duration
         self._queue = deque()
+        self._filled = False
 
     def push(self, sample):
         assert len(self._queue) == 0 or sample.t > self._queue[-1].t, "Samples are not monotonically increasing in time"
@@ -33,13 +38,20 @@ class TimeValueSampleQueue:
         # pop any stale samples
         while len(self._queue) > 0 and self._queue[-1].t - self._queue[0].t > self._duration:
             self._queue.popleft()
+            self._filled = True
+
+    @property
+    def filled(self):
+        return self._filled
 
     def copy_samples(self, desired_period=None, resample_threshold_proportion=0.50):
-        """Retrieves a copy of the samples within the duration provided at initialization. If desired_period is provided
-         and any sample is missing from the regular period intervals between the starting and ending points, or if
-         any sample time has more jitter than the resample_threshold_proportion of desired_period, then the sequence
-         will be resampled using an FFT technique to allow for downstream processing with methods that assume complete,
-         uniform and even time spacing."""
+        """
+        Retrieves a copy of the samples within the duration provided at initialization. If desired_period is provided
+        and any sample is missing from the regular period intervals between the starting and ending points, or if
+        any sample time has more jitter than the resample_threshold_proportion of desired_period, then the sequence
+        will be resampled using an FFT technique to allow for downstream processing with methods that assume complete,
+        uniform and even time spacing.
+        """
         assert not desired_period or desired_period > 0.0, "desired_period cannot be negative"
 
         # If empty or alignment/spacing is not important, just return a copy of the queue:
@@ -53,7 +65,7 @@ class TimeValueSampleQueue:
         aligned_times = np.linspace(start_time, stop_time, num_samples, True)
 
         resample = True
-        # See if we can stay on the fast path (if dropped nor extra samples) based on the average error
+        # See if we can stay on the fast path (assuming no dropped nor extra samples) based on the average error
         if len(aligned_times) == len(self._queue):
             average_error = np.mean(np.subtract(aligned_times, times))
             # in this case, correct the aligned times to more closely match the actual (as opposed to canonical times)
@@ -70,7 +82,7 @@ class TimeValueSampleQueue:
             resampled_times_values_tuple = scipy.signal.resample(values, num_samples, times)
             # Make a copy to we can cull as we go to decrease running time (n log n instead of n^2).
             queue = self._queue.copy()
-            for t, v in zip(resampled_times_values_tuple[1], resampled_times_values_tuple[0]):
+            for v, t in zip(*resampled_times_values_tuple):
                 while len(queue) > 0 and queue[0].t < t - desired_period / 2.0:
                     # This should be uncommon as this would indicate extra samples
                     queue.popleft()
@@ -80,8 +92,7 @@ class TimeValueSampleQueue:
                     aligned_sample = TimeValueSample(t, v)
                 result.append(aligned_sample)
         else:
-            for i, sample in enumerate(self._queue):
-                aligned_time = aligned_times[i]
+            for aligned_time, sample in zip(aligned_times, self._queue):
                 aligned_sample = sample.copy_with_time(aligned_time)
                 result.append(aligned_sample)
 

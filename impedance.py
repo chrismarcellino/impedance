@@ -68,16 +68,18 @@ if __name__ == "__main__":
     # In order to unify the event loop dependent code, we use the Qt event loop regardless of whether a GUI
     # is actually shown since it is about as official of a Python run loop as can be found (given the ubiquity of Qt)
     # and the need to use it for UI instances as well. We make an Application to get the run loop.
+    sampling_period = source.expected_sampling_period()
     gui = None
     if args.no_gui:
         app = QCoreApplication(sys.argv)
     else:
         app = QApplication(sys.argv)
-        gui = GUI(expected_sampling_period=source.expected_sampling_period())
+        gui = GUI(expected_sampling_period=sampling_period)
         gui.show_ui()
 
     # Create the data processing class
-    data_processor: DataProcessor = DataProcessor()
+    data_processor: DataProcessor = DataProcessor(expected_sampling_period=sampling_period,
+                                                  graphical_debugging_delegate=gui)
 
     # Create a signal
     class SampleDataEvent(QObject):

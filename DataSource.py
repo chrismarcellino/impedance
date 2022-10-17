@@ -14,7 +14,8 @@ class DataSource(ABC):
 
     @abstractmethod
     def start_data(self, callback_function):
-        """Starts receiving events from the subclass source.
+        """
+        Starts receiving events from the subclass source.
 
         callback_function has one argument, a TimeValueSample, which specify the system relative timestamp in seconds
         and the measured impedance corresponding to the timestamp, respectively.
@@ -27,7 +28,8 @@ class DataSource(ABC):
         a trampoline function or lambda that calls a Tk.after(0, function_or_lambda) message to relay the message to
         the GUI thread is sufficient: https://docs.python.org/3/library/tkinter.html#threading-model otherwise in Qt
         a signal will be required to be emitted via a Qt.QueuedConnection to a main thread, which will be automatically
-        used when a slot is fired from another thread in modern Qt versions."""
+        used when a slot is fired from another thread in modern Qt versions.
+        """
         self._stopped = False
         self.callback_function = callback_function
 
