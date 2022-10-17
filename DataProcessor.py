@@ -39,10 +39,24 @@ class DataProcessor:
 
     def process_samples(self):
         samples = self.sample_queue.copy_samples(desired_period=self.expected_sampling_period)
-        # TODO do the magic, and call the graphical_debugging_delegate at each interesting step; REMOVE TESTING
+        """
+        TODO: PLAN
+        -  high pass- low pass (or FFT) over 10 s prior sample to find component in range from freq. of 8 bpm to 30
+         bpm, then measure amplitude and offset, to calculate min and max.  
+          
+           - For some kind of SQI part from this (primarily) based on amplitudes and total other noise. 
+
+            -  Notify when BOTH min and max change since these could represent VAE 
+
+            - Can also notify when changes as tidal volume change and temporarily lower SQI x 1 minute
+
+            --LATER: ascertain pattern in FFT based on data post analysis
+   
         test_samples = []
         for sample in samples:
             test_sample = sample.copy_with(new_value=sample.v * 0.9)     # test code to graph a difference
             test_samples.append(test_sample)
-        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples, clear_first=True)
+        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples, \
+         clear_first=True)
         # END TEMP TESTING CODE
+        """
