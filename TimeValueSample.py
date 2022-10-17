@@ -34,7 +34,12 @@ class TimeValueSampleQueue:
         while len(self._queue) > 0 and self._queue[-1].t - self._queue[0].t > self._duration:
             self._queue.popleft()
 
-    def get_samples(self, desired_period=None, resample_threshold_proportion=0.50):
+    def copy_samples(self, desired_period=None, resample_threshold_proportion=0.50):
+        """Retrieves a copy of the samples within the duration provided at initialization. If desired_period is provided
+         and any sample is missing from the regular period intervals between the starting and ending points, or if
+         any sample time has more jitter than the resample_threshold_proportion of desired_period, then the sequence
+         will be resampled using an FFT technique to allow for downstream processing with methods that assume complete,
+         uniform and even time spacing."""
         assert not desired_period or desired_period > 0.0, "desired_period cannot be negative"
 
         # If empty or alignment/spacing is not important, just return a copy of the queue:
