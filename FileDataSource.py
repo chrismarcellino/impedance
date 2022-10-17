@@ -28,9 +28,9 @@ class FileDataSource(DataSource):
             assert isinstance(t, float) and isinstance(v, float), "invalid input file format: pairs are not numerical"
             self._samples.append(TimeValueSample(t, v))
 
-    def expected_sampling_period(self):
+    def expected_sampling_period(self) -> float:
         # Return the average period as our best estimate of the natural period (to tolerate artificial/test data better)
-        return np.mean(np.diff(list(sample.t for sample in self._samples)))
+        return float(np.mean(np.diff(list(sample.t for sample in self._samples))))
 
     def start_data(self, callback_function):
         super().start_data(callback_function)

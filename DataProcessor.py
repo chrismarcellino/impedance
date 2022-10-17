@@ -6,14 +6,12 @@ from TimeValueSample import TimeValueSampleQueue
 
 class GraphicalDebuggingDelegate(ABC):
     @abstractmethod
-    def graph_intermediate_sample_data(self, samples, data_index, label=None):
+    def graph_intermediate_sample_data(self, label, samples):
         """
         Graphs the derived sample data 'sample' for the purposes of validation and debugging. Samples must be an
         iterable type. It need not be a complete set of points to draw though each value provided must be unique and
-        monotonically increasing for a given data_index across all calls to this method.
-        The data_index is an arbitrary index denoting the relative ordering of the data, for the purposes of legend
-        creation and coloring. The label may be used in the legend and should be the same for all samples with the same
-        data_index (otherwise one may be arbitrarily chosen.)
+        monotonically increasing for a given label across all calls to this method. The label is both used in the
+        legend and to unique each plot data set.
         """
         pass
 
@@ -40,10 +38,10 @@ class DataProcessor:
 
     def process_samples(self):
         samples = self.sample_queue.copy_samples(desired_period=self.expected_sampling_period)
-        # TODO do the magic, and call the graphical_debugging_delegate at each interesting step
+        # TODO do the magic, and call the graphical_debugging_delegate at each interesting step; REMOVE TESTING
         test_samples = []
         for sample in samples:
             test_sample = sample.copy_with(new_value=sample.v * 0.5)     # test code to graph a difference
             test_samples.append(test_sample)
-        self.graphical_debugging_delegate.graph_intermediate_sample_data(test_samples, 1, "Test half for no reason!")
-        # TODO end testing code
+        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples)
+        # END TESTING

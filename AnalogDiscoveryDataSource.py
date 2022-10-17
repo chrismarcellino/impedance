@@ -86,7 +86,7 @@ class AnalogDiscoveryDataSource(DataSource):
         print("Loaded DWF framework version", version.value.decode("utf-8"))
         return dwf
 
-    def expected_sampling_period(self):
+    def expected_sampling_period(self) -> float:
         return self.POLLING_PERIOD
 
     def start_data(self, callback_function):

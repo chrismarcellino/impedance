@@ -8,7 +8,7 @@ class DataSource(ABC):
         self._stopped = True
 
     @abstractmethod
-    def expected_sampling_period(self):
+    def expected_sampling_period(self) -> float:
         """Returns the natural frequency of the datasource"""
         pass
 
