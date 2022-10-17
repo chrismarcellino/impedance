@@ -10,7 +10,7 @@ from TimeValueSample import TimeValueSampleQueue
 
 
 class GUI(GraphicalDebuggingDelegate):
-    MAIN_PLOT_TIME_WIDTH = 10.0    # in seconds
+    MAIN_PLOT_TIME_WIDTH = 10.0  # in seconds
     MAX_REFRESH_RATE = 1.0 / 30.0  # in seconds
     UNPROCESSED_PLOT_DATA_COLOR = 'g'
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
@@ -31,12 +31,12 @@ class GUI(GraphicalDebuggingDelegate):
 
         # Data received in the past MAIN_PLOT_TIME_WIDTH seconds
         self.sample_queue = TimeValueSampleQueue(self.MAIN_PLOT_TIME_WIDTH)
-        self.graphical_debugging_sample_queues = {}     # dictionary of labels to queues
+        self.graphical_debugging_sample_queues = {}  # dictionary of labels to queues
         self.needs_redraw = False
         self.last_draw_time = None
 
-    def create_and_layout_plot(self, title=None, absolute=False, fft=False) -> pyqtgraph.PlotItem:
-        plot = self.layout.addPlot(title=title, enableMenu=False)
+    def create_and_layout_plot(self, plot_title=None, absolute=False, fft=False) -> pyqtgraph.PlotItem:
+        plot = self.layout.addPlot(title=plot_title, enableMenu=False)
         self.layout.nextRow()
         # Disable interaction
         plot.getViewBox().setMouseEnabled(False, False)
@@ -48,8 +48,9 @@ class GUI(GraphicalDebuggingDelegate):
         self.create_plot_data_item(plot, self.UNPROCESSED_PLOT_DATA_COLOR)
         return plot
 
-    def create_plot_data_item(self, plot, color):
+    def create_plot_data_item(self, plot, color='w'):
         plot_data_item = plot.plot(pen=color)
+
         if plot.impedance_fft:
             plot_data_item.setFftMode(True)
             plot_data_item.setPen(pyqtgraph.mkPen(width=2, color=color))
@@ -82,15 +83,14 @@ class GUI(GraphicalDebuggingDelegate):
                 delay = max(next_draw_time - time.time(), 0.0)
             else:
                 delay = 0.0
-            QTimer.singleShot(delay * 1e3, self.redraw)      # QTimer accepts milliseconds
+            QTimer.singleShot(delay * 1e3, self.redraw)  # QTimer accepts milliseconds
 
     def redraw(self):
         self.needs_redraw = False
         self.last_draw_time = time.time()
 
-        samples = self.sample_queue.copy_samples()      # don't pass any period since we want to draw the raw data
-        t_data = np.array([sample.t for sample in samples])
-        v_data = np.array([sample.v for sample in samples])
+        t_data, v_data = self.time_value_arrays_for_queue(self.sample_queue)
+
         # If we do not have a full screen of data yet, we will pre-pad with np.nan as filler to maintain uniformity.
         data_duration = t_data[-1] - t_data[0]
         time_to_pad = self.MAIN_PLOT_TIME_WIDTH - data_duration
@@ -105,12 +105,30 @@ class GUI(GraphicalDebuggingDelegate):
                 t_data_padded, v_data_padded = self.pad_samples(t_data, v_data, time_to_pad)
                 data_item.setData(t_data_padded, v_data_padded)
             # Any subsequent plot data items are intermediate/debugging plots
-            """for data_item in plot.listDataItems()[1:]:
+            for data_item, labels in zip(plot.listDataItems()[1:], self.graphical_debugging_sample_queues.keys()):
+                queue = self.graphical_debugging_sample_queues[labels]
+                t_debugging_data, v_debugging_data = self.time_value_arrays_for_queue(queue, t_data[0])
                 if plot in self.plots_without_padding:
-                    data_item.setData(*self.pad_samples(t_data, v_data, time_to_pad))
+                    data_item.setData(*self.pad_samples(t_debugging_data, v_debugging_data, time_to_pad))
                 else:
-                    data_item.setData(t_data, v_data)
-                # TODO PASS INT. DATA TO THE PLOT instead of the above"""
+                    data_item.setData(t_debugging_data, v_debugging_data)
+
+    def time_value_arrays_for_queue(self, queue, oldest_time_allowed=None):
+        samples = queue.copy_samples()  # don't pass the period since we want to draw the raw data
+        t_data = np.empty(len(samples))
+        v_data = np.empty(len(samples))
+        for i, sample in enumerate(samples):
+            t_data[i] = sample.t
+            v_data[i] = sample.v
+
+        if oldest_time_allowed:
+            for i, t in enumerate(t_data):
+                if oldest_time_allowed <= t:
+                    t_data = t_data[i:]
+                    v_data = v_data[i:]
+                    break
+
+        return t_data, v_data
 
     def pad_samples(self, t_data, v_data, time_to_pad):
         if time_to_pad > self.expected_sampling_period:
@@ -119,7 +137,7 @@ class GUI(GraphicalDebuggingDelegate):
             nans = np.full(len(filler_time_values), np.nan)
             v_data = np.concatenate([v_data, nans])
             assert len(t_data) == len(v_data)
-            #TODO: LENGTHS ARE OBO TO HIGH???
+            # TODO: LENGTHS ARE OBO TO HIGH???
 
         return t_data, v_data
 
@@ -135,11 +153,14 @@ class GUI(GraphicalDebuggingDelegate):
         for plot in self.plots:
             self.create_plot_data_item(plot, color)
 
-    def graph_intermediate_sample_data(self, label, samples):
+    def graph_intermediate_sample_data(self, label, samples, clear_first=False):
         # Get (and create if needed) the queue for this index
-        if not label in self.graphical_debugging_sample_queues:
+        if label not in self.graphical_debugging_sample_queues:
             self.create_intermediate_sample_data_plot_and_queue(label)
         queue = self.graphical_debugging_sample_queues[label]
+
+        if clear_first:
+            queue.clear()
 
         # Add these samples to the queue and mark for redraw
         for sample in samples:

@@ -6,12 +6,13 @@ from TimeValueSample import TimeValueSampleQueue
 
 class GraphicalDebuggingDelegate(ABC):
     @abstractmethod
-    def graph_intermediate_sample_data(self, label, samples):
+    def graph_intermediate_sample_data(self, label, samples, clear_first=False):
         """
         Graphs the derived sample data 'sample' for the purposes of validation and debugging. Samples must be an
         iterable type. It need not be a complete set of points to draw though each value provided must be unique and
-        monotonically increasing for a given label across all calls to this method. The label is both used in the
-        legend and to unique each plot data set.
+        monotonically increasing for a given label across all calls to this method, unless clear_first is true, in
+        which case all prior sample data are reset and cleared from the plot. The label is both used in the legend and
+        also to unique each plot data set.
         """
         pass
 
@@ -41,7 +42,7 @@ class DataProcessor:
         # TODO do the magic, and call the graphical_debugging_delegate at each interesting step; REMOVE TESTING
         test_samples = []
         for sample in samples:
-            test_sample = sample.copy_with(new_value=sample.v * 0.5)     # test code to graph a difference
+            test_sample = sample.copy_with(new_value=sample.v * 0.9)     # test code to graph a difference
             test_samples.append(test_sample)
-        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples)
-        # END TESTING
+        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples, clear_first=True)
+        # END TEMP TESTING CODE

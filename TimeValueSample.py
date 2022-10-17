@@ -40,6 +40,11 @@ class TimeValueSampleQueue:
             self._queue.popleft()
             self._filled = True
 
+    def clear(self):
+        """Clears the queue. This may be useful for generating intermediate plots which are retrospectively revised."""
+        self._queue.clear()
+        self._filled = False
+
     @property
     def filled(self):
         return self._filled
