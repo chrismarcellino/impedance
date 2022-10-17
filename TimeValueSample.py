@@ -60,19 +60,17 @@ class TimeValueSampleQueue:
         # Generate the result sample list, using the uniform times
         result = []
         if resample:
-            print("Resampling")       # TODO TEMPORARY COMMENT ME OUT
             # This may be expensive. Attempt to align the data to the nearest original sample to preserve any metadata.
             values = np.array([sample.v for sample in self._queue])
             resampled_times_values_tuple = scipy.signal.resample(values, num_samples, times)
             # Make a copy to we can cull as we go to decrease running time (n log n instead of n^2).
             queue = self._queue.copy()
-            for t, v in zip(resampled_times_values_tuple[0], resampled_times_values_tuple[1]):
+            for t, v in zip(resampled_times_values_tuple[1], resampled_times_values_tuple[0]):
                 while len(queue) > 0 and queue[0].t < t - desired_period / 2.0:
-                    # this should be uncommon as this would indicate extra samples
-                    print("Dropping sample:", queue[0])      # TODO TEMPORARY COMMENT ME OUT
+                    # This should be uncommon as this would indicate extra samples
                     queue.popleft()
                 if len(queue) > 0 and queue[0].t < t + desired_period / 2.0:
-                    aligned_sample = queue[0].copy_with_time(t, v)
+                    aligned_sample = queue.popleft().copy_with_time(t, v)
                 else:
                     aligned_sample = TimeValueSample(t, v)
                 result.append(aligned_sample)
