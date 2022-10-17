@@ -78,7 +78,7 @@ class GUI:
         self.needs_redraw = False
         self.last_draw_time = time.time()
 
-        samples = self.sample_queue.get_samples()    #desired_period=self.expected_sampling_period)
+        samples = self.sample_queue.get_samples(desired_period=self.expected_sampling_period)
         t_data = t_data_no_padding = np.array([sample.t for sample in samples])
         v_data = v_data_no_padding = np.array([sample.v for sample in samples])
 

@@ -43,7 +43,7 @@ class TimeValueSampleQueue:
 
         start_time = self._queue[0].t
         stop_time = self._queue[-1].t
-        num_samples = round((stop_time - start_time) / desired_period)
+        num_samples = round((stop_time - start_time) / desired_period) + 1
         times = np.array([sample.t for sample in self._queue])
         aligned_times = np.linspace(start_time, stop_time, num_samples, True)
 
@@ -53,7 +53,7 @@ class TimeValueSampleQueue:
             average_error = np.mean(np.subtract(aligned_times, times))
             # in this case, correct the aligned times to more closely match the actual (as opposed to canonical times)
             aligned_times = np.subtract(times, average_error)
-            max_error = np.maximum(np.subtract(aligned_times, times))
+            max_error = np.amax(np.subtract(aligned_times, times))
             if max_error < desired_period * resample_threshold_proportion:
                 resample = False
 
