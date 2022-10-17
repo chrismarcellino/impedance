@@ -86,32 +86,32 @@ class GUI(GraphicalDebuggingDelegate):
             QTimer.singleShot(delay * 1e3, self.redraw)  # QTimer accepts milliseconds
 
     def redraw(self):
+        assert len(self.plots) > 0, "must create plots before drawing"
         self.needs_redraw = False
         self.last_draw_time = time.time()
 
-        t_data, v_data = self.time_value_arrays_for_queue(self.sample_queue)
+        # The first data item corresponds to the unmodified data.
+        queues = [self.sample_queue]
+        for labels in self.graphical_debugging_sample_queues.keys():
+            queues.append(self.graphical_debugging_sample_queues[labels])
 
-        # If we do not have a full screen of data yet, we will pre-pad with np.nan as filler to maintain uniformity.
-        data_duration = t_data[-1] - t_data[0]
-        time_to_pad = self.MAIN_PLOT_TIME_WIDTH - data_duration
-
-        # Iterate over the plots and populate the data
-        for plot in self.plots:
-            # The first plot data item is the unmodified plots
-            data_item = plot.listDataItems()[0]
-            if plot in self.plots_without_padding:
-                data_item.setData(t_data, v_data)
-            else:
-                t_data_padded, v_data_padded = self.pad_samples(t_data, v_data, time_to_pad)
-                data_item.setData(t_data_padded, v_data_padded)
-            # Any subsequent plot data items are intermediate/debugging plots
-            for data_item, labels in zip(plot.listDataItems()[1:], self.graphical_debugging_sample_queues.keys()):
-                queue = self.graphical_debugging_sample_queues[labels]
-                t_debugging_data, v_debugging_data = self.time_value_arrays_for_queue(queue, t_data[0])
+        # Iterate through the data items instead of the higher level plots to avoid redundant work.
+        oldest_time_allowed = time_to_pad = None
+        for i, queue in enumerate(queues):
+            t_data, v_data = self.time_value_arrays_for_queue(queue, oldest_time_allowed)
+            if i == 0:
+                # The first queue is the unmodified data, which sets our starting bound and padding parameters
+                oldest_time_allowed = t_data[0]
+                # If we do not have a full screen of data yet, pre-pad with np.nan as filler to maintain uniformity.
+                time_to_pad = self.MAIN_PLOT_TIME_WIDTH - (t_data[-1] - t_data[0])
+            # Iterate through the higher level plots and set the data item data
+            for plot in self.plots:
+                assert len(queues) == len(plot.listDataItems()), "mismatch in queues and data items"
+                data_item = plot.listDataItems()[i]
                 if plot in self.plots_without_padding:
-                    data_item.setData(*self.pad_samples(t_debugging_data, v_debugging_data, time_to_pad))
+                    data_item.setData(t_data, v_data)
                 else:
-                    data_item.setData(t_debugging_data, v_debugging_data)
+                    data_item.setData(*self.pad_samples(t_data, v_data, time_to_pad))
 
     def time_value_arrays_for_queue(self, queue, oldest_time_allowed=None):
         samples = queue.copy_samples()  # don't pass the period since we want to draw the raw data
