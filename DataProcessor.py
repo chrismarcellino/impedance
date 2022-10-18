@@ -39,10 +39,21 @@ class DataProcessor:
             self.last_analysis_time = sample.t
 
     def process_samples(self):
+        debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
+        # Get just the evenly spaced impedance values.
+        values = np.array([sample.v for sample in samples])
 
-        # Perform
+        # Perform bandpass to detect respiratory cycle. We assume that a RR of 8 to 24 would reflect general
+        # anesthesia reasonably well, which corresponds to a frequency (period) of 0.13 hz (7.5 s) and 0.4 hz (2.5 s)
+        # respectively. Spontaneous ventilation and irregular hand ventilation may impair this technique.
+        respiratory_bandpass_values = self.butterworth_bandpass_filter(values, 1.0 / 7.5, 1.0 / 2.5)
+        # Add back in the DC for plotting onlt
+        respiratory_bandpass_values_with_offset = np.add(respiratory_bandpass_values, np.mean(values))
+        debug_graph("Respiratory bandpass",
+                    self.copy_samples_with_values(samples, respiratory_bandpass_values_with_offset),
+                    clear_first=True)
 
         """
         TODO: PLAN
@@ -56,16 +67,15 @@ class DataProcessor:
             - Can also notify when changes as tidal volume change and temporarily lower SQI x 1 minute
 
             --LATER: ascertain pattern in FFT based on data post analysis
-   
-        test_samples = []
-        for sample in samples:
-            test_sample = sample.copy_with(new_value=sample.v * 0.9)     # test code to graph a difference
-            test_samples.append(test_sample)
-        self.graphical_debugging_delegate.graph_intermediate_sample_data("Test half for no reason!", test_samples, \
-         clear_first=True)
-        # END TEMP TESTING CODE
         """
 
-    def butterworth_bandpass_filter(self, data, low, high, order=4):
+    def butterworth_bandpass_filter(self, values, low, high, order=4):
         sos = signal.butter(order, [low, high], btype='bandpass', output='sos', fs=1.0 / self.sampling_period)
-        return signal.sosfiltfilt(sos, data)
+        return signal.sosfiltfilt(sos, values)
+
+    def copy_samples_with_values(self, samples, new_values):
+        new_queue = []
+        for sample, new_value in zip(samples, new_values):
+            new_sample = sample.copy_with(new_value=new_value)
+            new_queue.append(new_sample)
+        return new_queue
