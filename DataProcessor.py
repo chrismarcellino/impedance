@@ -1,6 +1,7 @@
 # DataProcessor.py
 from abc import ABC, abstractmethod
 import numpy as np
+from scipy import signal
 from TimeValueSample import TimeValueSampleQueue
 
 
@@ -23,8 +24,8 @@ class DataProcessor:
     SAMPLE_ANALYSIS_INTERVAL = 10.0
     SAMPLE_ANALYSIS_PERIOD = 5.0
 
-    def __init__(self, expected_sampling_period, graphical_debugging_delegate):
-        self.expected_sampling_period = expected_sampling_period
+    def __init__(self, sampling_period, graphical_debugging_delegate):
+        self.sampling_period = sampling_period
         self.graphical_debugging_delegate = graphical_debugging_delegate
         self.sample_queue = TimeValueSampleQueue(self.SAMPLE_ANALYSIS_INTERVAL)
         self.last_analysis_time = None
@@ -38,7 +39,11 @@ class DataProcessor:
             self.last_analysis_time = sample.t
 
     def process_samples(self):
-        samples = self.sample_queue.copy_samples(desired_period=self.expected_sampling_period)
+        # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
+        samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
+
+        # Perform
+
         """
         TODO: PLAN
         -  high pass- low pass (or FFT) over 10 s prior sample to find component in range from freq. of 8 bpm to 30
@@ -60,3 +65,7 @@ class DataProcessor:
          clear_first=True)
         # END TEMP TESTING CODE
         """
+
+    def butterworth_bandpass_filter(self, data, low, high, order=4):
+        sos = signal.butter(order, [low, high], btype='bandpass', output='sos', fs=1.0 / self.sampling_period)
+        return signal.sosfiltfilt(sos, data)

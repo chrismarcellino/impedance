@@ -5,8 +5,8 @@ import sys
 import argparse
 import threading
 
-from PySide6.QtCore import *
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QObject, QCoreApplication, Signal, Slot
 
 from TimeValueSample import TimeValueSample
 from AnalogDiscoveryDataSource import AnalogDiscoveryDataSource
@@ -15,7 +15,7 @@ from DataProcessor import DataProcessor
 from GUI import GUI
 
 
-@Slot(float, float)
+@Slot(TimeValueSample)
 def data_event_callback(sample):      # main thread slot call back
     assert threading.current_thread() is threading.main_thread()
     # for the file source, a negative time will indicate the end of the file
@@ -74,11 +74,11 @@ if __name__ == "__main__":
         app = QCoreApplication(sys.argv)
     else:
         app = QApplication(sys.argv)
-        gui = GUI(expected_sampling_period=sampling_period)
+        gui = GUI()
         gui.show_ui()
 
     # Create the data processing class
-    data_processor: DataProcessor = DataProcessor(expected_sampling_period=sampling_period,
+    data_processor: DataProcessor = DataProcessor(sampling_period=sampling_period,
                                                   graphical_debugging_delegate=gui)
 
     # Create a signal
@@ -86,9 +86,11 @@ if __name__ == "__main__":
         delivered = Signal(TimeValueSample)
     data_event = SampleDataEvent()
     # Register for the signal (on the main thread)
+    # noinspection PyUnresolvedReferences
     data_event.delivered.connect(data_event_callback)
     # Start the data collection/replay. The data source will call back on an arbitrary thread but the signal will
     # be queued onto the main thread. See comment in DataSource.start_data().
+    # noinspection PyUnresolvedReferences
     source.start_data(data_event.delivered.emit)
 
     # Start the event loop. This won't return until the GUI is closed or the app/event loop is otherwise exit.

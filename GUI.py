@@ -1,6 +1,6 @@
 # GUI.py
 import time
-from PySide6.QtCore import *
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 import pyqtgraph
 import numpy as np
@@ -16,9 +16,7 @@ class GUI(GraphicalDebuggingDelegate):
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
     ABSOLUTE_MAX_VALUE_SCALE = 300.0
 
-    def __init__(self, expected_sampling_period):
-        self.expected_sampling_period = expected_sampling_period
-
+    def __init__(self):
         self.view = pyqtgraph.GraphicsView()
         self.layout = pyqtgraph.GraphicsLayout(border=(100, 100, 100))
         self.view.setCentralItem(self.layout)
@@ -131,12 +129,12 @@ class GUI(GraphicalDebuggingDelegate):
         return t_data, v_data
 
     def pad_samples(self, t_data, v_data, time_to_pad):
-        if time_to_pad > self.expected_sampling_period:
+        average_period = np.mean(np.diff(t_data))
+        # This is a float precision safe way to see if there are, and how many samples to add
+        samples_to_add = round(time_to_pad / average_period)
+        if samples_to_add > 0:
             # we must use np.linspace instead of np.arange to avoid OBO errors due to float precision
-            filler_time_values = np.linspace(t_data[0] - time_to_pad,
-                                             t_data[0],
-                                             round(time_to_pad / self.expected_sampling_period),
-                                             endpoint=False)
+            filler_time_values = np.linspace(t_data[0] - time_to_pad, t_data[0], samples_to_add, endpoint=False)
             t_data = np.concatenate([filler_time_values, t_data])
             nans = np.full(len(filler_time_values), np.nan)
             v_data = np.concatenate([nans, v_data])
