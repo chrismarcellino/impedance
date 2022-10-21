@@ -53,7 +53,7 @@ class DataProcessor:
         # comparison of this to the actual min./max. are also used in the SQI.)
         #
         # We then take each period and compare the EEI and EII from that in the prior ...INTERVAL and use this to
-        # determine the likelihood of gross air entrainment. A increase in both EEI and EII as opposed to a change in
+        # determine the likelihood of gross air entrainment. An increase in both EEI and EII as opposed to a change in
         # either parameter alone is more suggestive of VAE (or a change in PEEP) as opposed to changes in other
         # mechanical ventilation parameters (namely, tidal volume which would be expected to modify only EII, or an
         # uncommon (except perhaps in a pressure control mode), an increase in PEEP combined with a decrease in TV
@@ -80,8 +80,8 @@ class DataProcessor:
                     self.copy_samples_with_values(samples, respiratory_bandpass_values_with_offset),
                     clear_first=True)
 
-        # Divide the interval up into complete sinusodal periods. Ignore any on the leading or trailing edge without
-        # a complete period as these will be included in the previous or next samlping interval since there is always
+        # Divide the interval up into complete sinusoidal periods. Ignore any on the leading or trailing edge without
+        # a complete period as these will be included in the previous or next sampling interval since there is always
         # at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         # TODO XXX : DIVIDE PERIOD UP AND DO MATH AS ABOVE.
 
