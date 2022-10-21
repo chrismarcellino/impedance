@@ -42,8 +42,8 @@ class DataProcessor:
         # Using overlapping portions of the signal (see SAMPLE_ANALYSIS_INTERVAL and SAMPLE_ANALYSIS_PERIOD above), we
         # perform a bandpass analysis to determine the dominant respiratory frequency (which should be the dominant
         # signal component overall anyhow as the respiratory cycle is the dominant signal in the impedance measurement,
-        # DOI: 10.1109/51.32406). The presence of and amplitude of this signal is be one of the main contributors to
-        # the signal quality index (SQI).
+        # DOI: 10.1109/51.32406). The presence of and amplitude of this signal is one of the main contributors to the
+        # signal quality index (SQI).
         #
         # If we find a reasonable respiratory waveform component, we then divide up the period into individual periods.
         # Then, the simplest and most accurate method for determining the end-inspiratory and end-expiratory impedance
@@ -80,7 +80,10 @@ class DataProcessor:
                     self.copy_samples_with_values(samples, respiratory_bandpass_values_with_offset),
                     clear_first=True)
 
-        # Measure the amplitude and offset, to calculate the minimum and maximum
+        # Divide the interval up into complete sinusodal periods. Ignore any on the leading or trailing edge without
+        # a complete period as these will be included in the previous or next samlping interval since there is always
+        # at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
+        # TODO XXX : DIVIDE PERIOD UP AND DO MATH AS ABOVE.
 
         """
         TODO: PLAN
