@@ -10,12 +10,11 @@ class TimeValueSample:
     """Common immutable sample data structure, for future extensibility (i.e. metadata, comments, etc.)"""
     t: float
     v: float
-
     # reserved: object = None
 
     # Produce a copy of TimeValueSample copying any future reserved state/metadata.
     def copy_with(self, new_time=None, new_value=None):
-        return TimeValueSample(new_time if new_time else self.t, new_value if new_value else self.v)
+        return TimeValueSample(t=new_time if new_time else self.t, v=new_value if new_value else self.v)
 
 
 class TimeValueSampleQueue:
@@ -31,14 +30,19 @@ class TimeValueSampleQueue:
         self._queue = deque()
         self._filled = False
 
-    def push(self, sample):
-        assert len(self._queue) == 0 or sample.t > self._queue[-1].t, "Samples are not monotonically increasing in time"
-        # append the new sample
-        self._queue.append(sample)
-        # pop any stale samples
-        while len(self._queue) > 0 and self._queue[-1].t - self._queue[0].t > self._duration:
-            self._queue.popleft()
-            self._filled = True
+    def push(self, sample, ignore_out_of_order_samples=False):
+        out_of_order = len(self._queue) > 0 and sample.t <= self._queue[-1].t
+        if out_of_order and ignore_out_of_order_samples:
+            sample = None
+
+        if sample:
+            assert not out_of_order, "Samples are not monotonically increasing in time"
+            # append the new sample
+            self._queue.append(sample)
+            # pop any stale samples
+            while len(self._queue) > 0 and self._queue[-1].t - self._queue[0].t > self._duration:
+                self._queue.popleft()
+                self._filled = True
 
     def clear(self):
         """Clears the queue. This may be useful for generating intermediate plots which are retrospectively revised."""

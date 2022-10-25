@@ -163,7 +163,8 @@ class GUI(GraphicalDebuggingDelegate):
         if clear_first:
             queue.clear()
 
-        # Add these samples to the queue and mark for redraw
+        # Add these samples to the queue and mark for redraw. Ensure that any out-of-order data is silently culled as
+        # this is purely a debugging utility, and give a best effort to draw intermediate heuristic data.
         for sample in samples:
-            queue.push(sample)
+            queue.push(sample, ignore_out_of_order_samples=True)
         self.mark_needs_redraw()

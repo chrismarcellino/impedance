@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy import signal
 from dataclasses import dataclass
-from TimeValueSample import TimeValueSampleQueue
+from TimeValueSample import TimeValueSample, TimeValueSampleQueue
 
 
 class GraphicalDebuggingDelegate(ABC):
@@ -131,7 +131,20 @@ class DataProcessor:
                                                 timestamp_in_seconds=timestamp_in_seconds,
                                                 period_length_in_seconds=period_length_in_seconds)
                     self.respiratory_cycle_datum.append(data)
-                    print("Captured respiratory cycle data for cycle starting at {0:1.1f}".format(timestamp_in_seconds))
+                    print("Captured data for resp. cycle starting at {0:1.1f} seconds.".format(timestamp_in_seconds))
+
+                    # Graph the min. and max. for debugging purposes
+                    debug_graph_samples = 100
+                    for i in range(debug_graph_samples):
+                        offset = period_length_in_seconds * i / debug_graph_samples
+                        debug_graph("Respiratory min. peaks",
+                                    [TimeValueSample(t=timestamp_in_seconds + offset, v=data.the_min)])
+                        debug_graph("Respiratory max. peaks",
+                                    [TimeValueSample(t=timestamp_in_seconds + offset, v=data.the_max)])
+                        debug_graph("Respiratory 5%-ile",
+                                    [TimeValueSample(t=timestamp_in_seconds + offset, v=data.min_percentile)])
+                        debug_graph("Respiratory 95%-ile",
+                                    [TimeValueSample(t=timestamp_in_seconds + offset, v=data.max_percentile)])
 
         # Trim excess data to ensure a bounded computational time/storage
         while len(self.respiratory_cycle_datum) > self.MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP:
