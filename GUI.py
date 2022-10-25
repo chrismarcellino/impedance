@@ -10,7 +10,7 @@ from TimeValueSample import TimeValueSampleQueue
 
 
 class GUI(GraphicalDebuggingDelegate):
-    MAIN_PLOT_TIME_WIDTH = 10.0  # in seconds
+    MAIN_PLOT_TIME_WIDTH = 20.0  # in seconds
     MAX_REFRESH_RATE = 1.0 / 30.0  # in seconds
     UNPROCESSED_PLOT_DATA_COLOR = 'g'
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
@@ -21,7 +21,7 @@ class GUI(GraphicalDebuggingDelegate):
         self.layout = pyqtgraph.GraphicsLayout(border=(100, 100, 100))
         self.view.setCentralItem(self.layout)
         self.view.setWindowTitle('Impedance')
-        self.view.resize(900, 700)
+        self.view.resize(1100, 700)
 
         # These are the plots, stacked vertically, in order from top to bottom.
         self.plots = []
