@@ -99,7 +99,7 @@ class DataProcessor:
         resp_frequency_detected = self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY
 
         if resp_frequency_detected:
-            print("Respiratory cycle detected with average frequency {0:1.3f} hz and RR {1:1.0f} (/min.)".format(
+            print("Respiratory cycle detected with average frequency {0:1.3f} hz (RR {1:1.0f}).".format(
                 dominant_frequency,
                 dominant_frequency * 60.0))
         else:
