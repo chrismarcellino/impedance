@@ -3,6 +3,7 @@ import math
 from abc import ABC, abstractmethod
 import numpy as np
 from scipy import signal
+from dataclasses import dataclass
 from TimeValueSample import TimeValueSampleQueue
 
 
@@ -19,6 +20,19 @@ class GraphicalDebuggingDelegate(ABC):
         pass
 
 
+@dataclass(frozen=True)
+class RespiratoryCycleData:
+    the_min: float
+    the_max: float
+    min_percentile: float
+    max_percentile: float
+    timestamp_in_seconds: float
+    period_length_in_seconds: float
+
+    def is_timestamp_coincident(self, timestamp_in_seconds):
+        return abs(self.timestamp_in_seconds - timestamp_in_seconds) < (self.period_length_in_seconds / 2.0)
+
+
 class DataProcessor:
     # We process the previous 20 seconds, every 10 seconds, to allow for better respiratory detection while preserving
     # low latency of VAE detection. Any ratio >= 2:1 will ensure every individual respiratory period is analyzed. The
@@ -31,11 +45,14 @@ class DataProcessor:
     MIN_RESPIRATORY_FREQUENCY = 8.0 / 60.0
     MAX_RESPIRATORY_FREQUENCY = 30.0 / 60.0
 
+    MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP = 100
+
     def __init__(self, sampling_period, graphical_debugging_delegate):
         self.sampling_period = sampling_period
         self.graphical_debugging_delegate = graphical_debugging_delegate
         self.sample_queue = TimeValueSampleQueue(self.SAMPLE_ANALYSIS_INTERVAL)
         self.last_analysis_time = None
+        self.respiratory_cycle_datum = []
 
     def data_callback(self, sample):
         self.sample_queue.push(sample)
@@ -72,6 +89,7 @@ class DataProcessor:
         debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
+        first_sample_timestamp_in_seconds = samples[0].t
         # Get the evenly spaced impedance values as a numpy array
         values = np.array([sample.v for sample in samples])
 
@@ -82,8 +100,8 @@ class DataProcessor:
 
         if resp_frequency_detected:
             print("Respiratory cycle detected with average frequency {0:1.3f} hz and RR {1:1.0f} (/min.)".format(
-                  dominant_frequency,
-                  dominant_frequency * 60.0))
+                dominant_frequency,
+                dominant_frequency * 60.0))
         else:
             print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz".format(dominant_frequency))
 
@@ -94,13 +112,30 @@ class DataProcessor:
             period_length_in_seconds = 1.0 / dominant_frequency
             period_length_in_samples = round(period_length_in_seconds / self.sampling_period)
 
-            slices = self.find_period_slices_with_greatest_average_variance(values, period_length_in_samples)
-            for a_slice in slices:
-                # Get min, max, 5%- and 95%-ile values for comparison
-                slice_min = np.min(a_slice)
-                slice_max = np.max(a_slice)
-                slice_min_percentile = np.percentile(a_slice, 5)
-                slice_max_percentile = np.percentile(a_slice, 95)
+            slices, start_indexes = self.find_period_slices_with_greatest_average_variance(values,
+                                                                                           period_length_in_samples)
+            for a_slice, timestamp_in_samples in zip(slices, start_indexes):
+                timestamp_in_seconds = first_sample_timestamp_in_seconds + timestamp_in_samples * self.sampling_period
+                # Avoid adding duplicate data, and assume the prior data is best to keep.
+                is_new = True
+                for data in reversed(self.respiratory_cycle_datum):
+                    if data.is_timestamp_coincident(timestamp_in_seconds):
+                        is_new = False
+                        break
+                if is_new:
+                    # Get min, max, 5%- and 95%-ile values for comparison
+                    data = RespiratoryCycleData(the_min=np.min(a_slice),
+                                                the_max=np.max(a_slice),
+                                                min_percentile=np.percentile(a_slice, 5),
+                                                max_percentile=np.percentile(a_slice, 95),
+                                                timestamp_in_seconds=timestamp_in_seconds,
+                                                period_length_in_seconds=period_length_in_seconds)
+                    self.respiratory_cycle_datum.append(data)
+                    print("Captured respiratory cycle data for cycle starting at {0:1.1f}".format(timestamp_in_seconds))
+
+        # Trim excess data to ensure a bounded computational time/storage
+        while len(self.respiratory_cycle_datum) > self.MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP:
+            self.respiratory_cycle_datum.pop(0)
 
         """
         TODO: PLAN
@@ -115,27 +150,36 @@ class DataProcessor:
         """
 
     def find_period_slices_with_greatest_average_variance(self, values, period_length, steps=3):
+        # A respiratory cycle is defined as inhalation followed by exhalation, so the average signal should be higher
+        # earlier than later in the period.
+        halves = np.array_split(values, 2)
+        is_reversed = np.average(halves[0]) < np.average(halves[1])
+
         # only need to search up to the half-period since the respiratory cycle is periodic of course
-        best_slices = best_variance = None
-        for offset_fraction in np.linspace(0.0, 0.5, steps):
+        best_slices = best_start_indexes = best_variance = None
+        start_fraction = 0.5 if is_reversed else 0.0
+        for offset_fraction in np.linspace(start_fraction, start_fraction + 0.5, steps):
             offset = round(period_length * offset_fraction)
-            slices = self.slice_values_into_periods(values, period_length, offset)
+            slices, start_indexes = self.slice_values_into_periods(values, period_length, offset)
             variance = np.var(slices)
             if best_variance is None or variance > best_variance:
                 best_slices = slices
+                best_start_indexes = start_indexes
                 best_variance = variance
-        return best_slices
+        return best_slices, best_start_indexes
 
     def slice_values_into_periods(self, values, period_length, offset=0):
         num_slices = math.floor(len(values) / period_length)
         slices = []
+        start_indexes = []
         for i in range(num_slices):
             start = i * period_length + offset
             end = start + period_length
             if end <= len(values):  # only return complete slices
                 a_slice = values[start:end]
                 slices.append(a_slice)
-        return slices
+                start_indexes.append(start)
+        return slices, start_indexes
 
     def copy_samples_with_values(self, samples, new_values):
         new_queue = []
