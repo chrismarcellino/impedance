@@ -1,4 +1,5 @@
 # DataProcessor.py
+import math
 from abc import ABC, abstractmethod
 import numpy as np
 from scipy import signal
@@ -46,7 +47,7 @@ class DataProcessor:
 
     def process_samples(self):
         # Using overlapping portions of the signal (see SAMPLE_ANALYSIS_INTERVAL and SAMPLE_ANALYSIS_PERIOD above), we
-        # perform an FFT-based autocorrelation analysis to determine the dominant respiratory frequency (as the
+        # perform an FFT-based spectral density analysis to determine the dominant respiratory frequency (as the
         # respiratory cycle is the dominant signal in the chest impedance measurement, DOI: 10.1109/51.32406).
         # The presence of and amplitude of this signal is used as one of the main contributors to the signal
         # quality index (SQI).
@@ -73,7 +74,6 @@ class DataProcessor:
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
         # Get the evenly spaced impedance values as a numpy array
         values = np.array([sample.v for sample in samples])
-        value_length_in_seconds = len(values) * self.sampling_period
 
         # Perform FFT-based spectral density analysis on the signal to try to isolate the dominant periodic signal.
         periodogram_freq, power_density = signal.periodogram(values, fs=1.0 / self.sampling_period)
@@ -87,26 +87,25 @@ class DataProcessor:
         else:
             print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz".format(dominant_frequency))
 
-        # If we were successful, continue to divide the values into into complete sinusoidal periods. Ignore any
+        # If we were successful, continue to divide the values into complete sinusoidal periods. Ignore any
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         if resp_frequency_detected:
-            num_respiratory_periods = int(value_length_in_seconds * dominant_frequency)
             period_length_in_seconds = 1.0 / dominant_frequency
+            period_length_in_samples = round(period_length_in_seconds / self.sampling_period)
 
-            # First, divide up the data into arbitrary periods starting at the first sample
-            arbitrary_period_values = []
-            for i in range(period_length_in_seconds):
-
-                arbitrary_period_values.append()
-
+            slices = self.find_period_slices_with_greatest_average_variance(values, period_length_in_samples)
+            for a_slice in slices:
+                # Get min, max, 5%- and 95%-ile values for comparison
+                slice_min = np.min(a_slice)
+                slice_max = np.max(a_slice)
+                slice_min_percentile = np.percentile(a_slice, 5)
+                slice_max_percentile = np.percentile(a_slice, 95)
 
         """
         TODO: PLAN
-        -  high pass- low pass (or FFT) over 10 s prior sample to find component in range from freq. of 8 bpm to 30
-         bpm, then measure amplitude and offset, to calculate min and max.  
           
-           - For some kind of SQI part from this (primarily) based on amplitudes and total other noise. 
+           - For some kind of SQI part from these (primarily) based on differences from min/max, inter-sample variation
 
             -  Notify when BOTH min and max change since these could represent VAE 
 
@@ -115,23 +114,28 @@ class DataProcessor:
             --LATER: ascertain pattern in FFT based on data post analysis
         """
 
-    def subarrays_with_x_limits(self, x_array, y_array, x_min=0.0, x_max=float('inf')):
-        assert len(x_array) == len(y_array), "arrays must be equal length"
+    def find_period_slices_with_greatest_average_variance(self, values, period_length, steps=3):
+        # only need to search up to the half-period since the respiratory cycle is periodic of course
+        best_slices = best_variance = None
+        for offset_fraction in np.linspace(0.0, 0.5, steps):
+            offset = round(period_length * offset_fraction)
+            slices = self.slice_values_into_periods(values, period_length, offset)
+            variance = np.var(slices)
+            if best_variance is None or variance > best_variance:
+                best_slices = slices
+                best_variance = variance
+        return best_slices
 
-        lower_index = len(x_array)
-        upper_index = 0
-
-        for i, f in enumerate(x_array):
-            if f >= x_min:
-                lower_index = i
-                break
-
-        for i, f in reversed(list(enumerate(x_array))):
-            if f <= x_max:
-                upper_index = i + 1
-                break
-
-        return x_array[lower_index:upper_index], y_array[lower_index:upper_index]
+    def slice_values_into_periods(self, values, period_length, offset=0):
+        num_slices = math.floor(len(values) / period_length)
+        slices = []
+        for i in range(num_slices):
+            start = i * period_length + offset
+            end = start + period_length
+            if end <= len(values):  # only return complete slices
+                a_slice = values[start:end]
+                slices.append(a_slice)
+        return slices
 
     def copy_samples_with_values(self, samples, new_values):
         new_queue = []
