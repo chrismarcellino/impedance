@@ -235,7 +235,7 @@ class DataProcessor:
             sqi += aggregate_trend_sqi_component
 
         # In lieu of supporting output to a clinical monitor via serial, log the current data to the console.
-        print("Current VAE score: {} (SQI {})", vae_score, sqi)
+        print("Current VAE score: {} (SQI {})".format(vae_score, sqi))
         if sqi_alarm:
             self.sound_alarm()
 
