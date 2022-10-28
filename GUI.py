@@ -54,7 +54,6 @@ class GUI(GraphicalDebuggingDelegate):
             plot_data_item.setPen(pyqtgraph.mkPen(width=2, color=color))
             plot_data_item.setFillLevel(0)
             plot_data_item.setFillBrush(pyqtgraph.mkBrush(color))
-            plot.getViewBox().setXRange(0.0, 100)  # Disable X scaling
 
     def show_ui(self):
         # Make the plot
@@ -107,7 +106,8 @@ class GUI(GraphicalDebuggingDelegate):
                 assert len(queues) == len(plot.listDataItems()), "mismatch in queues and data items"
                 data_item = plot.listDataItems()[i]
                 if i != 0 or plot in self.plots_without_padding:
-                    data_item.setData(t_data, v_data)
+                    # Never pass just 1 item since this can't be graphed by FFT methods etc.
+                    data_item.setData(t_data if len(t_data) > 1 else [], v_data if len(v_data) else [])
                 else:
                     data_item.setData(*self.pad_samples(t_data, v_data, time_to_pad))
 
@@ -129,16 +129,17 @@ class GUI(GraphicalDebuggingDelegate):
         return t_data, v_data
 
     def pad_samples(self, t_data, v_data, time_to_pad):
-        average_period = np.mean(np.diff(t_data))
-        # This is a float precision safe way to see if there are, and how many samples to add
-        samples_to_add = round(time_to_pad / average_period)
-        if samples_to_add > 0:
-            # we must use np.linspace instead of np.arange to avoid OBO errors due to float precision
-            filler_time_values = np.linspace(t_data[0] - time_to_pad, t_data[0], samples_to_add, endpoint=False)
-            t_data = np.concatenate([filler_time_values, t_data])
-            nans = np.full(len(filler_time_values), np.nan)
-            v_data = np.concatenate([nans, v_data])
-            assert len(t_data) == len(v_data)
+        if len(t_data) > 1:
+            average_period = np.mean(np.diff(t_data))
+            # This is a float precision safe way to see if there are any, and how many samples to add
+            samples_to_add = round(time_to_pad / average_period)
+            if samples_to_add > 0:
+                # we must use np.linspace instead of np.arange to avoid OBO errors due to float precision
+                filler_time_values = np.linspace(t_data[0] - time_to_pad, t_data[0], samples_to_add, endpoint=False)
+                t_data = np.concatenate([filler_time_values, t_data])
+                nans = np.full(len(filler_time_values), np.nan)
+                v_data = np.concatenate([nans, v_data])
+                assert len(t_data) == len(v_data)
 
         return t_data, v_data
 

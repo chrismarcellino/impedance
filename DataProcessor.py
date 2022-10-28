@@ -111,6 +111,10 @@ class DataProcessor:
         # Get the evenly spaced impedance values as a numpy array
         values = np.array([sample.v for sample in samples])
 
+        # Determine the average to reject grossly non-physiological data (i.e. disconnection)
+        average = np.average(values)
+        average_plausible = 10 < average < 500
+
         # Perform FFT-based spectral density analysis on the signal to try to isolate the dominant periodic signal.
         periodogram_freq, power_density = signal.periodogram(values, fs=1.0 / self.sampling_period)
         dominant_frequency = periodogram_freq[np.argmax(power_density)]
@@ -118,7 +122,7 @@ class DataProcessor:
         # If we were successful, continue to divide the values into complete sinusoidal periods. Ignore any
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
-        if self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
+        if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
             print("Respiratory cycle detected with average frequency {0:1.3f} hz (RR {1:1.0f}).".format(
                 dominant_frequency,
                 dominant_frequency * 60.0))
@@ -145,7 +149,11 @@ class DataProcessor:
             # In the future, look for global "signature-based" evidence of VAE and store that as instance variable
             # state to be accounted for the VAE calculations.
         else:
-            print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz".format(dominant_frequency))
+            if average_plausible:
+                print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz)".format(dominant_frequency))
+            else:
+                print("No patient data detected. Check cabling and connections. (Average impedance: {0:1.3f} ohms)"
+                      .format(average))
             self.detected_respiratory_period_length = None
             self.first_detected_respiratory_cycle_time = None
 

@@ -13,8 +13,8 @@ class AnalogDiscoveryDataSource(DataSource):
     # Constants
     SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
     MEASUREMENT_FREQUENCY = 100e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
-    POLLING_FREQUENCY = 1e3  # polling frequency (in hz) that determines how often the impedance above is measured
-    POLLING_PERIOD = 1.0 / POLLING_FREQUENCY          # converted from hz to seconds
+    POLLING_FREQUENCY = 1e2  # polling frequency (in hz) that determines how often the impedance above is measured
+    POLLING_PERIOD = 1.0 / POLLING_FREQUENCY  # converted from hz to seconds
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
     SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mV on the DUT in human subjects with intact skin at 100kHz (total voltage may be higher)
@@ -22,7 +22,7 @@ class AnalogDiscoveryDataSource(DataSource):
 
     C_INT_TRUE = c_int(1)
     C_INT_FALSE = c_int(0)
-    C_STRING_BUFFER_LENGTH = 1024       # for typical user facing strings; far longer than anything returned by DWF
+    C_STRING_BUFFER_LENGTH = 1024  # for typical user facing strings; far longer than anything returned by DWF
 
     # Framework (class) variables
     dwf = None  # the dynamically loaded framework class
@@ -110,14 +110,14 @@ class AnalogDiscoveryDataSource(DataSource):
             serial_number = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
             dwf.FDwfEnumSN(c_int(i), serial_number)
             serial_number_string = serial_number.value.decode("utf-8")
-            if not serial_number_string in devices_enumerated:
+            if serial_number_string not in devices_enumerated:
                 devices_enumerated.append(serial_number_string)
                 device_name_string = device_name.value.decode("utf-8")
                 in_use = c_bool()
                 dwf.FDwfEnumDeviceIsOpened(c_int(i), byref(in_use))
                 print("Enumerated Analog Discovery device '{}' (SN: {}){}".format(device_name_string,
-                                                                                serial_number_string,
-                                                                                " (*in use*)" if in_use else ""))
+                                                                                  serial_number_string,
+                                                                                  " (*in use*)" if in_use else ""))
         return devices.value
 
     def _open_device(self):
@@ -165,21 +165,21 @@ class AnalogDiscoveryDataSource(DataSource):
         start_time = time.time()
 
         # Poll the source until we are interrupted
-        polling_period = self.POLLING_PERIOD
         sample_number, next_sample_time = 0, 0
         while not self.stopped:
             # Find the sleep interval
             sleep_time = 0
             dropped_sample = False
-            while sample_number == 0 or sleep_time < 0:
+            while sample_number == 0 or sleep_time <= 0:
                 sample_number += 1
-                next_sample_time = start_time + polling_period * sample_number
+                next_sample_time = start_time + self.POLLING_PERIOD * sample_number
                 sleep_time = next_sample_time - time.time()
                 # skip any polling more than one period out of date to allow for easier debugging.,
                 # should not occur normally unless there are insufficient hardware resources, etc.
-                dropped_sample |= sleep_time < 0
+                if sleep_time < -self.POLLING_PERIOD:
+                    dropped_sample = True
             if dropped_sample:
-                print("Dropped sample at time: {:.3f}".format(next_sample_time))
+                print("Dropped sample {} at time {:.3f}".format(sample_number, next_sample_time))
 
             time.sleep(sleep_time)
 
@@ -196,12 +196,20 @@ class AnalogDiscoveryDataSource(DataSource):
                 impedance = c_double()
                 dwf.FDwfAnalogImpedanceStatusMeasure(device_handle, DwfAnalogImpedanceResistance, byref(impedance))
                 # notify the callback and optionally save the result to disk
-                sample = TimeValueSample(next_sample_time, impedance.value)
-                self.callback_function(sample)
-                if self._outputFile:
-                    FileDataSource.append_time_value_pair_to_file(sample, self._outputFile)
+                if self._valid_impedance_value(impedance.value):
+                    # Create a zero-normalized sample time to improve readability and reduce downstream imprecision
+                    # (i.e. with FFT-based calculations.) This should be the same as next_sample_time - start_time.
+                    normalized_sample_time = self.POLLING_PERIOD * sample_number
+                    sample = TimeValueSample(normalized_sample_time, impedance.value)
+                    self.callback_function(sample)
+                    if self._outputFile:
+                        FileDataSource.append_time_value_pair_to_file(sample, self._outputFile)
             else:
                 print("Failed to poll for sample (FDwfAnalogImpedanceStatus returned DwfState… status code: {}".format(
                     status.value))
 
         dwf.FDwfAnalogImpedanceConfigure(device_handle, self.C_INT_FALSE)  # stop the analysis
+
+    def _valid_impedance_value(self, impedance):
+        # Reject non-physiological numbers to avoid downstream calculation errors
+        return 0 < impedance < 1E6
