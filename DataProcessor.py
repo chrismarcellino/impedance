@@ -72,7 +72,10 @@ class DataProcessor:
         # The queue is limited to SAMPLE_ANALYSIS_INTERVAL samples (see its initialization.)
         if self.sample_queue.filled and \
                 (not self.last_analysis_time or self.last_analysis_time + self.SAMPLE_ANALYSIS_PERIOD < sample.t):
+            # Call the processing methods
             self.process_samples()
+            self.calculate_scores()
+
             self.last_analysis_time = sample.t
 
     """
@@ -98,7 +101,8 @@ class DataProcessor:
     VAE probability. Consistency in any of these values otherwise will add to the SQI. Irregular hand ventilation
     may impair this technique and will result in a poor SQI.
     
-    This algorithm is implemented through the following process_...() and calculated_...() methods:
+    This algorithm is implemented through the following process_sample() and calculate_scores() methods, and their
+    subroutines. 
     """
     def process_samples(self):
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
@@ -136,7 +140,7 @@ class DataProcessor:
                         is_new = False
                         break
                 if is_new:
-                    self.process_new_slice(a_slice, timestamp)
+                    self.store_data_for_new_slice(a_slice, timestamp)
 
             # In the future, look for global "signature-based" evidence of VAE and store that as instance variable
             # state to be accounted for the VAE calculations.
@@ -145,7 +149,7 @@ class DataProcessor:
             self.detected_respiratory_period_length = None
             self.first_detected_respiratory_cycle_time = None
 
-    def process_new_slice(self, a_slice, timestamp):    # timestamp is in seconds
+    def store_data_for_new_slice(self, a_slice, timestamp):    # timestamp is in seconds
         # Get min, max, 5%- and 95%-ile values for comparison
         data = RespiratoryCycleData(the_min=np.min(a_slice),
                                     the_max=np.max(a_slice),
@@ -168,8 +172,6 @@ class DataProcessor:
         # Trim excess data to ensure a bounded computational time/storage (should only loop once at most)
         while len(self.respiratory_cycle_data) > self.MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP:
             self.respiratory_cycle_data.pop(0)
-
-        self.calculate_scores()
 
     def calculate_scores(self):
         # both values defined to be in [0,100]
