@@ -98,7 +98,7 @@ class AnalogDiscoveryDataSource(DataSource):
         # Open the first available device and store the device handle
         device_handle = c_int(hdwfNone.value)
         last_error_string = None
-        while True:
+        while not self.stopped:
             self.dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
             if device_handle.value == hdwfNone.value:
                 error_string = create_string_buffer(512)
