@@ -191,7 +191,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 dwf.FDwfGetLastErrorMsg(error_string)
                 print("Failed to query device: ", error_string.value)
                 exit(1)
-            elif status.value == DwfStateDone:
+            elif status.value == DwfStateDone.value:
                 # The sample is ready. Retrieve it and call the callback function.
                 impedance = c_double()
                 dwf.FDwfAnalogImpedanceStatusMeasure(device_handle, DwfAnalogImpedanceResistance, byref(impedance))
@@ -201,6 +201,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 if self._outputFile:
                     FileDataSource.append_time_value_pair_to_file(sample, self._outputFile)
             else:
-                print("Sample not ready; DwfState status code:", status.value)
+                print("Failed to poll for sample (FDwfAnalogImpedanceStatus returned DwfState… status code: {}".format(
+                    status.value))
 
         dwf.FDwfAnalogImpedanceConfigure(device_handle, self.C_INT_FALSE)  # stop the analysis

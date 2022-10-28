@@ -92,7 +92,7 @@ class DataProcessor:
     the offset ("DC" component.) However, to reduce noise artifact, we find the 5%- and 95%-ile value. (The
     comparison of this to the actual min./max. are also used in the SQI.)
 
-    We then take each period and compare the EEI and EII from that in the prior ...INTERVAL and use this to
+    We then take each period and compare the EEI and EII from that in the prior …INTERVAL and use this to
     determine the likelihood of gross air entrainment. An increase in both EEI and EII as opposed to a change in
     either parameter alone is more suggestive of VAE (or a change in PEEP) as opposed to changes in other
     mechanical ventilation parameters (namely, tidal volume which would be expected to modify only EII, or an
