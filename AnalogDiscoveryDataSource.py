@@ -22,6 +22,7 @@ class AnalogDiscoveryDataSource(DataSource):
 
     C_INT_TRUE = c_int(1)
     C_INT_FALSE = c_int(0)
+    C_STRING_BUFFER_LENGTH = 1024       # for typical user facing strings; far longer than anything returned by DWF
 
     # Framework (class) variables
     dwf = None  # the dynamically loaded framework class
@@ -49,7 +50,7 @@ class AnalogDiscoveryDataSource(DataSource):
             # on Windows
             dwf = cdll.dwf
         elif sys.platform.startswith("darwin"):
-            # on macOS; find the app path first
+            # on macOS
             default_app_path = "/Applications/WaveForms.app"
             app_paths = [default_app_path, "~" + default_app_path]
             # query Spotlight to find any alternate locations as well
@@ -63,8 +64,9 @@ class AnalogDiscoveryDataSource(DataSource):
             assert app_path, "WaveForms.app not found"
 
             # Prefer the system standard folders first, then as a last resort, use the framework bundled with the app
-            # based on the manufacturer's convention; though in general the one bundled in the app will be the one used
-            # by most users as it makes it so the framework doesn't need to be installed nor updated separately
+            # based on the manufacturer's convention Note that use of the application bundled framework will result in
+            # a "can't enumerate device" error unless the app is run as a superuser. Hence, it is preferable to just
+            # install the SDK framework into \Library\Frameworks which will be used preferentially.
             framework_suffix = "/Frameworks/dwf.framework/dwf"
             lib_paths = ["/Library" + framework_suffix,
                          "~/Library" + framework_suffix,
@@ -75,6 +77,7 @@ class AnalogDiscoveryDataSource(DataSource):
                     lib_path = path
                     break
             assert lib_path, "WaveForms framework not found"
+            print('Using DWF framework at path "{}"'.format(lib_path))
             dwf = cdll.LoadLibrary(lib_path)
         else:
             # on Linux or other Unix
@@ -83,7 +86,7 @@ class AnalogDiscoveryDataSource(DataSource):
         # log the path and version
         version = create_string_buffer(32)
         dwf.FDwfGetVersion(version)
-        print("Loaded DWF framework version", version.value.decode("utf-8"))
+        print("Loaded DWF framework version {}".format(version.value.decode("utf-8")))
         return dwf
 
     def expected_sampling_period(self) -> float:
@@ -94,25 +97,53 @@ class AnalogDiscoveryDataSource(DataSource):
         # Spawn a background thread to poll the hardware source
         Thread(target=self._polling_thread, name="analog_discovery_source_iterator_thread").start()
 
+    def _enumerate_devices(self, ) -> int:
+        dwf = self.dwf  # typing convenience
+        # Counts and prints the list of connected devices
+        devices = c_int()
+        dwf.FDwfEnum(c_int(0), byref(devices))
+
+        devices_enumerated = []
+        for i in range(0, devices.value):
+            device_name = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
+            dwf.FDwfEnumDeviceName(c_int(i), device_name)
+            serial_number = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
+            dwf.FDwfEnumSN(c_int(i), serial_number)
+            serial_number_string = serial_number.value.decode("utf-8")
+            if not serial_number_string in devices_enumerated:
+                devices_enumerated.append(serial_number_string)
+                device_name_string = device_name.value.decode("utf-8")
+                in_use = c_bool()
+                dwf.FDwfEnumDeviceIsOpened(c_int(i), byref(in_use))
+                print("Enumerated Analog Discovery device '{}' (SN: {}){}".format(device_name_string,
+                                                                                serial_number_string,
+                                                                                " (*in use*)" if in_use else ""))
+        return devices.value
+
     def _open_device(self):
+        # Enumerate the devices for logging purposes and wait until there is one
+        count = self._enumerate_devices()
+        log_awaiting_connection = True
+        while not self.stopped and count <= 0:
+            if log_awaiting_connection:
+                print("No Analog Discovery devices connected. Awaiting device connection.")
+                log_awaiting_connection = False
+            time.sleep(1)
+
         # Open the first available device and store the device handle
         device_handle = c_int(hdwfNone.value)
         last_error_string = None
-        while not self.stopped:
+        while not self.stopped and device_handle.value == hdwfNone.value:
             self.dwf.FDwfDeviceOpen(c_int(-1), byref(device_handle))
             if device_handle.value == hdwfNone.value:
-                error_string = create_string_buffer(512)
+                error_string = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
                 self.dwf.FDwfGetLastErrorMsg(error_string)
                 if error_string.value != last_error_string:
                     print("Failed to open Analog Discovery device. Error code:",
                           error_string.value.decode("utf-8").splitlines())
-                    print("Awaiting device connection")
                     last_error_string = error_string.value
                 time.sleep(1)
-            else:
-                break
 
-        print("Connected to Analog Discovery device with handle:", device_handle.value)
         return device_handle
 
     def _polling_thread(self):
@@ -156,7 +187,7 @@ class AnalogDiscoveryDataSource(DataSource):
             status = c_byte()
             if not dwf.FDwfAnalogImpedanceStatus(device_handle, byref(status)):
                 # hardware error
-                error_string = create_string_buffer(512)
+                error_string = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
                 dwf.FDwfGetLastErrorMsg(error_string)
                 print("Failed to query device: ", error_string.value)
                 exit(1)
