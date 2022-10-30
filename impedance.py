@@ -40,6 +40,8 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
     args = parser.parse_args()
 
+    print(f"Launched impedance v{__version__}.")
+
     if args.replay:
         # Replay a prior recording
         try:
