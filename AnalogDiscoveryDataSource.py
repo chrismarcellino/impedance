@@ -209,6 +209,7 @@ class AnalogDiscoveryDataSource(DataSource):
                     status.value))
 
         dwf.FDwfAnalogImpedanceConfigure(device_handle, self.C_INT_FALSE)  # stop the analysis
+        dwf.FDwfDeviceClose(device_handle)
 
     def _valid_impedance_value(self, impedance):
         # Reject non-physiological numbers to avoid downstream calculation errors
