@@ -126,7 +126,7 @@ class AnalogDiscoveryDataSource(DataSource):
         log_awaiting_connection = True
         while not self.stopped and count <= 0:
             if log_awaiting_connection:
-                print("No Analog Discovery devices connected. Awaiting device connection.")
+                print("No Analog Discovery devices connected; awaiting device connection.")
                 log_awaiting_connection = False
             time.sleep(1)
 
@@ -139,8 +139,8 @@ class AnalogDiscoveryDataSource(DataSource):
                 error_string = create_string_buffer(self.C_STRING_BUFFER_LENGTH)
                 self.dwf.FDwfGetLastErrorMsg(error_string)
                 if error_string.value != last_error_string:
-                    print("Failed to open Analog Discovery device. Error code:",
-                          error_string.value.decode("utf-8").splitlines())
+                    error_string_pretty = error_string.value.decode("utf-8").splitlines()
+                    print(f'Failed to open Analog Discovery device (error: "{error_string_pretty}").')
                     last_error_string = error_string.value
                 time.sleep(1)
 
