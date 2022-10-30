@@ -77,7 +77,7 @@ class AnalogDiscoveryDataSource(DataSource):
                     lib_path = path
                     break
             assert lib_path, "WaveForms framework not found"
-            print('Using DWF framework at path "{}"'.format(lib_path))
+            print(f'Using DWF framework at path "{lib_path}"')
             dwf = cdll.LoadLibrary(lib_path)
         else:
             # on Linux or other Unix
@@ -86,7 +86,7 @@ class AnalogDiscoveryDataSource(DataSource):
         # log the path and version
         version = create_string_buffer(32)
         dwf.FDwfGetVersion(version)
-        print("Loaded DWF framework version {}".format(version.value.decode("utf-8")))
+        print(f'Loaded DWF framework version {version.value.decode("utf-8")}.')
         return dwf
 
     def expected_sampling_period(self) -> float:
@@ -179,7 +179,7 @@ class AnalogDiscoveryDataSource(DataSource):
                 if sleep_time < -self.POLLING_PERIOD:
                     dropped_sample = True
             if dropped_sample:
-                print("Dropped sample {} at time {:.3f}".format(sample_number, next_sample_time))
+                print(f"Dropped sample {sample_number} at time {next_sample_time:.3f}")
 
             time.sleep(sleep_time)
 

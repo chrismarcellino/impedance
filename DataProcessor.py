@@ -127,7 +127,7 @@ class DataProcessor:
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         first_sample_timestamp = samples[0].t
         if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
-            print("Respiratory cycle detected with average frequency {0:1.3f} hz (RR {1:1.0f}).".format(
+            print("Respiratory cycle detected with average frequency {:1.3f} hz (RR {:1.0f}).".format(
                 dominant_frequency,
                 dominant_frequency * 60.0))
 
@@ -154,10 +154,9 @@ class DataProcessor:
             # instance variable state to be accounted for the VAE calculations here.
         else:
             if average_plausible:
-                print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz)".format(dominant_frequency))
+                print(f"No respiratory cycle detected. (Dominant frequency {dominant_frequency:1.3f} hz)")
             else:
-                print("No patient data detected. Check cabling and connections. (Average impedance: {0:1.3f} ohms)"
-                      .format(average))
+                print(f"No patient data detected; check cabling and connections. (Avg. impedance: {average:1.3f} ohms)")
             self.detected_respiratory_period_length = None
             self.first_detected_respiratory_cycle_time = None
 
@@ -249,7 +248,7 @@ class DataProcessor:
             sqi += aggregate_trend_sqi_component
 
         # In lieu of supporting output to a clinical monitor via serial, log the current data to the console.
-        print("Current VAE score: {} (SQI {})".format(vae_score, sqi))
+        print(f"Current VAE score: {vae_score} (SQI {sqi})")
         if sqi_alarm:
             self.sound_alarm()
 

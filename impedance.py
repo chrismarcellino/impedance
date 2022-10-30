@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Chest impedance processor for venous air embolism and other findings.')
     parser.add_argument('-r', '--replay', help='replay impedance input using a previously saved CSV file path')
-    parser.add_argument('-s', '--save', help='save impedance measurements to a CSV file path')
+    parser.add_argument('-s', '--save', help='save impedance measurements to a CSV file path (or \'auto\')')
     parser.add_argument('--no-gui', help='supress the graphical interface', action='store_true')
     parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
     args = parser.parse_args()
@@ -53,10 +53,13 @@ if __name__ == "__main__":
     else:
         # If requested, create a file handle to output the recordings
         if args.save:
+            path = args.save
+            if args.save == 'auto':
+                path = TODO()
             try:
-                file = open(args.save, "w")
+                file = open(path, "w")
             except FileNotFoundError:
-                print(f"Path {args.save} not found.")
+                print(f"Path {path} not found.")
                 sys.exit(1)
             except IOError as e:
                 print(f"I/O error({e.errno}): {e.strerror}")
