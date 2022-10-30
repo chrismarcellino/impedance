@@ -71,7 +71,7 @@ class TimeValueSampleQueue:
         stop_time = self._queue[-1].t
         num_samples = round((stop_time - start_time) / desired_period) + 1
         times = np.array([sample.t for sample in self._queue])
-        aligned_times = np.linspace(start_time, stop_time, num_samples, True)
+        aligned_times = np.linspace(start_time, stop_time, num_samples)
 
         resample = True
         # See if we can stay on the fast path (assuming no dropped nor extra samples) based on the average error
@@ -85,8 +85,8 @@ class TimeValueSampleQueue:
 
         # Generate the result sample list, using the uniform times
         result = []
-        if resample or True:
-            # This may be expensive. Attempt to align the data to the nearest original sample to preserve any metadata.
+        if resample:
+            # Attempt to align the data to the nearest original sample to preserve any metadata.
             values = np.array([sample.v for sample in self._queue])
             resampled_times_values_tuple = scipy.signal.resample(values, num_samples, times)
             # Make a copy to we can cull as we go to decrease running time (n log n instead of n^2).

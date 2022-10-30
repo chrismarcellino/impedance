@@ -110,8 +110,8 @@ class DataProcessor:
     def process_samples(self):
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
-        first_sample_timestamp = samples[0].t
-        # Get the evenly spaced impedance values as a numpy array
+        self.graphical_debugging_delegate.graph_intermediate_sample_data("Uniform", samples)
+        # Get the evenly spaced, possibly resampled, impedance values as a numpy array
         values = np.array([sample.v for sample in samples])
 
         # Determine the average to reject grossly non-physiological data (i.e. disconnection)
@@ -125,6 +125,7 @@ class DataProcessor:
         # If we were successful, continue to divide the values into complete sinusoidal periods. Ignore any
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
+        first_sample_timestamp = samples[0].t
         if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
             print("Respiratory cycle detected with average frequency {0:1.3f} hz (RR {1:1.0f}).".format(
                 dominant_frequency,
@@ -259,7 +260,7 @@ class DataProcessor:
             print("\a")  # play a simple bell for non-Mac users (a production design would feed into a clinical monitor)
 
     # Utility methods
-    def find_period_slices_with_greatest_average_variance(self, values, period_length, steps=3):
+    def find_period_slices_with_greatest_average_variance(self, values, period_length, steps=5):
         # A respiratory cycle is defined as inhalation followed by exhalation, so the average signal should be higher
         # earlier than later in the period.
         halves = np.array_split(values, 2)
@@ -290,10 +291,3 @@ class DataProcessor:
                 slices.append(a_slice)
                 start_indexes.append(start)
         return slices, start_indexes
-
-    def copy_samples_with_values(self, samples, new_values):
-        new_queue = []
-        for sample, new_value in zip(samples, new_values):
-            new_sample = sample.copy_with(new_value=new_value)
-            new_queue.append(new_sample)
-        return new_queue
