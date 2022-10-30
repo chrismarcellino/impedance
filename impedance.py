@@ -5,6 +5,7 @@ import sys
 import argparse
 import threading
 import time
+import os
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QObject, QCoreApplication, Signal, Slot
@@ -39,7 +40,6 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
     args = parser.parse_args()
 
-    file = None
     if args.replay:
         # Replay a prior recording
         try:
@@ -53,19 +53,20 @@ if __name__ == "__main__":
             sys.exit(1)
     else:
         # If requested, create a file handle to output the recordings
+        file = None
         if args.save:
             path = args.save
             if args.save == 'auto':
                 path = time.strftime("%Y%m%d-%H%M%S.csv")
             try:
                 file = open(path, "w")
+                print(f'Recording output to path "{os.path.realpath(file.name)}".')
             except FileNotFoundError:
                 print(f"Path {path} not found.")
                 sys.exit(1)
             except IOError as e:
                 print(f"I/O error({e.errno}): {e.strerror}")
                 sys.exit(1)
-
         # Open the oscilloscope source, optionally saving the recording
         source = AnalogDiscoveryDataSource(file)
 
