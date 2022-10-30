@@ -4,6 +4,7 @@ __version__ = '0.1'
 import sys
 import argparse
 import threading
+import time
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QObject, QCoreApplication, Signal, Slot
@@ -55,7 +56,7 @@ if __name__ == "__main__":
         if args.save:
             path = args.save
             if args.save == 'auto':
-                path = TODO()
+                path = time.strftime("%Y%m%d-%H%M%S.csv")
             try:
                 file = open(path, "w")
             except FileNotFoundError:
