@@ -55,6 +55,9 @@ class DataProcessor:
 
     MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP = 15     # of approximately SAMPLE_ANALYSIS_INTERVAL length, i.e. 5 minutes
 
+    MIN_PLAUSIBLE_IMPEDANCE = 10
+    MAX_PLAUSIBLE_IMPEDANCE = 500
+
     def __init__(self, sampling_period, graphical_debugging_delegate):
         self.sampling_period = sampling_period
         self.graphical_debugging_delegate = graphical_debugging_delegate
@@ -113,7 +116,7 @@ class DataProcessor:
 
         # Determine the average to reject grossly non-physiological data (i.e. disconnection)
         average = np.average(values)
-        average_plausible = 10 < average < 500
+        average_plausible = self.MIN_PLAUSIBLE_IMPEDANCE < average < self.MAX_PLAUSIBLE_IMPEDANCE
 
         # Perform FFT-based spectral density analysis on the signal to try to isolate the dominant periodic signal.
         periodogram_freq, power_density = signal.periodogram(values, fs=1.0 / self.sampling_period)
@@ -146,8 +149,8 @@ class DataProcessor:
                 if is_new:
                     self.store_data_for_new_slice(a_slice, timestamp)
 
-            # In the future, look for global "signature-based" evidence of VAE and store that as instance variable
-            # state to be accounted for the VAE calculations.
+            # In the future, can also attempt to look for global "signature-based" evidence of VAE and store that as
+            # instance variable state to be accounted for the VAE calculations here.
         else:
             if average_plausible:
                 print("No respiratory cycle detected. (Dominant frequency {0:1.3f} hz)".format(dominant_frequency))
