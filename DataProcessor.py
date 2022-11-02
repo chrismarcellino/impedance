@@ -56,7 +56,7 @@ class DataProcessor:
     MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP = 15     # of approximately SAMPLE_ANALYSIS_INTERVAL length, i.e. 5 minutes
 
     MIN_PLAUSIBLE_IMPEDANCE = 10
-    MAX_PLAUSIBLE_IMPEDANCE = 500
+    MAX_PLAUSIBLE_IMPEDANCE = 3000
 
     def __init__(self, sampling_period, graphical_debugging_delegate):
         self.sampling_period = sampling_period
