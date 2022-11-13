@@ -12,7 +12,7 @@ from dwfconstants import *
 class AnalogDiscoveryDataSource(DataSource):
     # Constants
     SAMPLING_MODE = 8  # 0 = W1-C1-DUT-C2-R-GND, 1 = W1-C1-R-C2-DUT-GND, 8 = AD IA adapter
-    MEASUREMENT_FREQUENCY = 100e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
+    MEASUREMENT_FREQUENCY = 50e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
     POLLING_FREQUENCY = 1e2  # polling frequency (in hz) that determines how often the impedance above is measured
     POLLING_PERIOD = 1.0 / POLLING_FREQUENCY  # converted from hz to seconds
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
