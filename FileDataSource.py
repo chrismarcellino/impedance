@@ -60,6 +60,6 @@ class FileDataSource(DataSource):
 
     @classmethod
     def append_time_value_pair_to_file(cls, sample, file):
-        writer = csv.writer(file, quoting=csv.QUOTE_NONNUMERIC)
-        writer.writerow([sample.t, sample.v])
+        writer = csv.writer(file, quoting=csv.QUOTE_NONE)   # since we are using format strings to control precision
+        writer.writerow(['{:.6f}'.format(sample.t), '{:.6f}'.format(sample.v)])
         file.flush()
