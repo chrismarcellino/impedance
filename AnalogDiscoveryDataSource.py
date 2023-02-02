@@ -16,8 +16,10 @@ class AnalogDiscoveryDataSource(DataSource):
     POLLING_FREQUENCY = 1e2  # polling frequency (in hz) that determines how often the impedance above is measured
     POLLING_PERIOD = 1.0 / POLLING_FREQUENCY  # converted from hz to seconds
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
-    SAMPLING_VOLTS = 1e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
-    # do not use more than 1 mV on the DUT in human subjects with intact skin at 100kHz (total voltage may be higher)
+    SAMPLING_VOLTS = 200e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
+    # do not use more than 1 mA on the DUT in human subjects at 100kHz, and 0.5 mA at freq. > 50kHz
+    # assuming a 100 ohm resistor and a 100 ohm minimum impedance even with invasive needles, this permits 200 mV RMS
+    # which is 282 ma (amplitude i.e. peak-to-0 volts).
     MINIMUM_PERIODS_TO_CAPTURE = 32  # to average
 
     C_INT_TRUE = c_int(1)
