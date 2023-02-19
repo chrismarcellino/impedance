@@ -67,6 +67,7 @@ class DataProcessor:
         self.last_analysis_time = None
         # Result data
         self.detected_respiratory_period_length = None  # in seconds; None implies respiratory cycle not detected.
+        self.detected_respiratory_period_sd = None  # in seconds; None implies respiratory cycle not detected.
         self.first_detected_respiratory_cycle_time = None  # in seconds; reflects the beginning of the sample interval
         self.respiratory_cycle_data: List[RespiratoryCycleData] = []
 
@@ -163,6 +164,7 @@ class DataProcessor:
                 sd_period))
 
             self.detected_respiratory_period_length = 1.0 / average_frequency  # in seconds
+            self.detected_respiratory_period_sd = sd_period
             # Mark the first contiguous time of detection for SQI purposes
             if not self.first_detected_respiratory_cycle_time:
                 self.first_detected_respiratory_cycle_time = first_sample_timestamp
@@ -189,6 +191,7 @@ class DataProcessor:
             else:
                 print(f"No patient data detected; check cabling and connections. (Avg. impedance: {average:1.3f} ohms)")
             self.detected_respiratory_period_length = None
+            self.detected_respiratory_period_sd = None
             self.first_detected_respiratory_cycle_time = None
 
     def store_data_for_new_slice(self, a_slice, timestamp):  # timestamp is in seconds
@@ -242,11 +245,13 @@ class DataProcessor:
                     ratio = 1.0 / ratio
                 vae_score += round(max(1.0 - ratio, 0.0) * 50)
 
-        # SQI is defined as zero if there is no respiratory cycle detectable (throughout the entire past interval)
+        # SQI is defined as zero if there is no respiratory cycle detectable (throughout the entire past interval).
         if self.detected_respiratory_period_length and len(self.respiratory_cycle_data) > 0:
             # Give up to 50 points purely based on the duration of respiratory history if we are tracking, since we
             # have something to compare.
-            sqi += min(len(self.respiratory_cycle_data) * 50 / score_last_number_of_datas, 50)
+            max_sd_for_any_points = 4.0
+            max_points = 50 * (max_sd_for_any_points - self.detected_respiratory_period_sd) / max_sd_for_any_points
+            sqi += min(len(self.respiratory_cycle_data) * max_points / score_last_number_of_datas, max_points)
 
             # Give additional points (up to 20 points) for long term stability
             time_tracking = self.respiratory_cycle_data[-1].timestamp - self.first_detected_respiratory_cycle_time
