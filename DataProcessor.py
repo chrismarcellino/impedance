@@ -29,7 +29,7 @@ class RespiratoryCycleData:
     the_max: float
     min_percentile: float
     max_percentile: float
-    timestamp: float    #
+    timestamp: float  #
     cycle_duration: float
 
     def is_timestamp_coincident(self, timestamp):
@@ -53,7 +53,7 @@ class DataProcessor:
     MIN_RESPIRATORY_FREQUENCY = 8.0 / 60.0
     MAX_RESPIRATORY_FREQUENCY = 30.0 / 60.0
 
-    MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP = 15     # of approximately SAMPLE_ANALYSIS_INTERVAL length, i.e. 5 minutes
+    MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP = 15  # of approximately SAMPLE_ANALYSIS_INTERVAL length, i.e. 5 minutes
 
     MIN_PLAUSIBLE_IMPEDANCE = 10
     MAX_PLAUSIBLE_IMPEDANCE = 3000
@@ -64,8 +64,8 @@ class DataProcessor:
         self.sample_queue = TimeValueSampleQueue(self.SAMPLE_ANALYSIS_INTERVAL)
         self.last_analysis_time = None
         # Result data
-        self.detected_respiratory_period_length = None      # in seconds; None implies respiratory cycle not detected.
-        self.first_detected_respiratory_cycle_time = None   # in seconds; reflects the beginning of the sample interval
+        self.detected_respiratory_period_length = None  # in seconds; None implies respiratory cycle not detected.
+        self.first_detected_respiratory_cycle_time = None  # in seconds; reflects the beginning of the sample interval
         self.respiratory_cycle_data: List[RespiratoryCycleData] = []
 
     def data_callback(self, sample):
@@ -83,10 +83,9 @@ class DataProcessor:
 
     """
     Using overlapping portions of the signal (see SAMPLE_ANALYSIS_INTERVAL and SAMPLE_ANALYSIS_PERIOD above), we
-    perform an FFT-based spectral density analysis to determine the dominant respiratory frequency (as the
-    respiratory cycle is the dominant signal in the chest impedance measurement, DOI: 10.1109/51.32406).
-    The presence of and amplitude of this signal is used as one of the main contributors to the signal
-    quality index (SQI).
+    perform a peak based analysis to determine the dominant respiratory frequency (as the respiratory cycle is the
+    dominant signal in the chest impedance measurement, DOI: 10.1109/51.32406). The presence of, regularity and
+    amplitude of this signal is used as one of the main contributors to the signal quality index (SQI).
 
     If we find a reasonable respiratory waveform component, we then divide up the period into individual periods.
     Then, the simplest and most accurate method for determining the end-inspiratory and end-expiratory impedance
@@ -107,6 +106,7 @@ class DataProcessor:
     This algorithm is implemented through the following process_sample() and calculate_scores() methods, and their
     subroutines. 
     """
+
     def process_samples(self):
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
@@ -118,14 +118,29 @@ class DataProcessor:
         average = np.average(values)
         average_plausible = self.MIN_PLAUSIBLE_IMPEDANCE < average < self.MAX_PLAUSIBLE_IMPEDANCE
 
-        # Perform FFT-based spectral density analysis on the signal to try to isolate the dominant periodic signal.
-        periodogram_freq, power_density = signal.periodogram(values, fs=1.0 / self.sampling_period)
-        dominant_frequency = periodogram_freq[np.argmax(power_density)]
+        # Perform a peak-based analysis to determine the respiratory cycles and see if each cycle correlates
+        # reasonably with each other cycle in the same sample. Since we analyze strictly overlapping segments, we can
+        # remove non-coincident peaks.
+        min_respiratory_period = 1.0 / self.MAX_RESPIRATORY_FREQUENCY
+        min_respiratory_period_in_samples = min_respiratory_period / self.sampling_period
+        step = min_respiratory_period_in_samples / 8
+        peak_indexes = signal.find_peaks_cwt(values, np.arange(step, min_respiratory_period_in_samples, step))
+        # Graph a short segment over the peak as a 3-point line for debugging/display purposes
+        for peak_index in peak_indexes:
+            t = samples[peak_index].t
+            v = samples[peak_index].v
+            flat_lines = [TimeValueSample(t - 0.5, v),
+                          TimeValueSample(t, v),
+                          TimeValueSample(t + 0.5, v)]
+            self.graphical_debugging_delegate.graph_intermediate_sample_data("Peak " + str(peak_index),
+                                                                             flat_lines,
+                                                                             clear_first=True)
 
         # If we were successful, continue to divide the values into complete sinusoidal periods. Ignore any
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         first_sample_timestamp = samples[0].t
+        dominant_frequency = 0  # TODO:  FIGURE THIS OUT USING NEW TECHNIQUE
         if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
             print("Respiratory cycle detected with average frequency {:1.3f} hz (RR {:1.0f}).".format(
                 dominant_frequency,
@@ -160,7 +175,7 @@ class DataProcessor:
             self.detected_respiratory_period_length = None
             self.first_detected_respiratory_cycle_time = None
 
-    def store_data_for_new_slice(self, a_slice, timestamp):    # timestamp is in seconds
+    def store_data_for_new_slice(self, a_slice, timestamp):  # timestamp is in seconds
         # Get min, max, 5%- and 95%-ile values for comparison
         data = RespiratoryCycleData(the_min=np.min(a_slice),
                                     the_max=np.max(a_slice),
@@ -171,7 +186,7 @@ class DataProcessor:
         self.respiratory_cycle_data.append(data)
 
         # Graph the min. and max. for debugging purposes
-        debug_graph_samples = 100   # add arbitrary points within the segment to smooth the graphing
+        debug_graph_samples = 100  # add arbitrary points within the segment to smooth the graphing
         for i in range(debug_graph_samples):
             offset = self.detected_respiratory_period_length * i / debug_graph_samples
             debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
@@ -229,14 +244,14 @@ class DataProcessor:
             min_percentiles = np.array([data.min_percentile for data in self.respiratory_cycle_data])
             max_percentiles = np.array([data.max_percentile for data in self.respiratory_cycle_data])
             percentile_variances = np.var(min_percentiles) + np.var(max_percentiles)
-            percentile_sqi_component = max(1.0 - percentile_variances / 10.0, 0.0) * 10     # the weight
+            percentile_sqi_component = max(1.0 - percentile_variances / 10.0, 0.0) * 10  # the weight
 
             mins = np.array([data.the_min for data in self.respiratory_cycle_data])
             maxs = np.array([data.the_max for data in self.respiratory_cycle_data])
             absolute_variances = np.var(mins) + np.var(maxs)
-            absolute_sqi_component = max(1.0 - absolute_variances / 10.0, 0.0) * 5          # the weight
+            absolute_sqi_component = max(1.0 - absolute_variances / 10.0, 0.0) * 5  # the weight
 
-            tidal_volume_surrogate = max_percentiles - min_percentiles      # in units of Ohms
+            tidal_volume_surrogate = max_percentiles - min_percentiles  # in units of Ohms
             tidal_volume_variance = np.var(tidal_volume_surrogate)
             tidal_volume_variance_sqi_component = max(1.0 - tidal_volume_variance / 10.0, 0.0) * 15  # the weight
 
