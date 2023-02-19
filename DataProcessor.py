@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import sys
 import os
 import math
+
+import numpy
 import numpy as np
 from scipy import signal
 from dataclasses import dataclass
@@ -123,7 +125,7 @@ class DataProcessor:
         # remove non-coincident peaks.
         min_respiratory_period = 1.0 / self.MAX_RESPIRATORY_FREQUENCY
         min_respiratory_period_in_samples = min_respiratory_period / self.sampling_period
-        # Base the peak detection on CWTs
+        # Base the peak detection on wavelets around the size of the shortest acceptable breath
         peak_indexes = signal.find_peaks_cwt(values, np.linspace(0, min_respiratory_period_in_samples, 8)[1:-1])
         # Graph a short segment over the peak as a 3-point line for debugging/display purposes
         for peak_index in peak_indexes:
@@ -136,17 +138,31 @@ class DataProcessor:
                                                                              flat_lines,
                                                                              clear_first=True)
 
+        # Next determine the mean distance and SD between the peaks
+        average_period = None
+        sd_period = None
+        if len(peak_indexes) >= 2:
+            peak_times = []
+            for peak_index in peak_indexes:
+                peak_times.append(samples[peak_index].t)
+            delta_times = np.diff(peak_times)
+            average_period = numpy.mean(delta_times)
+            sd_period = numpy.std(delta_times)
+
         # If we were successful, continue to divide the values into complete sinusoidal periods. Ignore any
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         first_sample_timestamp = samples[0].t
-        dominant_frequency = 0  # TODO:  FIGURE THIS OUT USING NEW TECHNIQUE
-        if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= dominant_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
-            print("Respiratory cycle detected with average frequency {:1.3f} hz (RR {:1.0f}).".format(
-                dominant_frequency,
-                dominant_frequency * 60.0))
+        average_frequency = 0.0
+        if average_period > 0:
+            average_frequency = 1.0 / average_period
+        if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= average_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
+            print("Respiratory cycle detected with average frequency {:1.3f} hz (RR {:1.0f}, SD {:1.3f} hz).".format(
+                average_frequency,
+                average_frequency * 60.0,
+                sd_period))
 
-            self.detected_respiratory_period_length = 1.0 / dominant_frequency  # in seconds
+            self.detected_respiratory_period_length = 1.0 / average_frequency  # in seconds
             # Mark the first contiguous time of detection for SQI purposes
             if not self.first_detected_respiratory_cycle_time:
                 self.first_detected_respiratory_cycle_time = first_sample_timestamp
@@ -169,7 +185,7 @@ class DataProcessor:
             # instance variable state to be accounted for the VAE calculations here.
         else:
             if average_plausible:
-                print(f"No respiratory cycle detected. (Dominant frequency {dominant_frequency:1.3f} hz)")
+                print(f"No respiratory cycle detected. (Average inter-peak frequency {average_frequency:1.3f} hz)")
             else:
                 print(f"No patient data detected; check cabling and connections. (Avg. impedance: {average:1.3f} ohms)")
             self.detected_respiratory_period_length = None
