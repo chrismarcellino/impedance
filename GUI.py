@@ -15,6 +15,7 @@ class GUI(GraphicalDebuggingDelegate):
     UNPROCESSED_PLOT_DATA_COLOR = 'g'
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
     ABSOLUTE_MAX_VALUE_SCALE = 300.0
+    FFT_MAX_VALUE_SCALE = 5.0
 
     def __init__(self):
         self.view = pyqtgraph.GraphicsView()
@@ -40,6 +41,8 @@ class GUI(GraphicalDebuggingDelegate):
         plot.getViewBox().setMouseEnabled(False, False)
         if absolute:
             plot.getViewBox().setYRange(0.0, self.ABSOLUTE_MAX_VALUE_SCALE)  # Disable Y scaling
+        if fft:
+            plot.getViewBox().setYRange(0.0, self.FFT_MAX_VALUE_SCALE)
         # We set the fact that this is an FFT plot using a 'custom' instance variable we set on the plot
         plot.impedance_fft = fft
         # Create the unprocessed data plot (the other plots for debugging data are created dynamically).
