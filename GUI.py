@@ -120,11 +120,14 @@ class GUI(GraphicalDebuggingDelegate):
             v_data[i] = sample.v
 
         if oldest_time_allowed:
-            for i, t in enumerate(t_data):
-                if oldest_time_allowed <= t:
-                    t_data = t_data[i:]
-                    v_data = v_data[i:]
-                    break
+            if len(t_data) > 0 and oldest_time_allowed > t_data[-1]:
+                t_data = v_data = []
+            else:
+                for i, t in enumerate(t_data):
+                    if oldest_time_allowed <= t:
+                        t_data = t_data[i:]
+                        v_data = v_data[i:]
+                        break
 
         return t_data, v_data
 
