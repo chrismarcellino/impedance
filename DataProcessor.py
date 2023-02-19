@@ -123,8 +123,8 @@ class DataProcessor:
         # remove non-coincident peaks.
         min_respiratory_period = 1.0 / self.MAX_RESPIRATORY_FREQUENCY
         min_respiratory_period_in_samples = min_respiratory_period / self.sampling_period
-        step = min_respiratory_period_in_samples / 8
-        peak_indexes = signal.find_peaks_cwt(values, np.arange(step, min_respiratory_period_in_samples, step))
+        # Base the peak detection on CWTs
+        peak_indexes = signal.find_peaks_cwt(values, np.linspace(0, min_respiratory_period_in_samples, 8)[1:-1])
         # Graph a short segment over the peak as a 3-point line for debugging/display purposes
         for peak_index in peak_indexes:
             t = samples[peak_index].t
