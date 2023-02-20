@@ -15,7 +15,7 @@ class GUI(GraphicalDebuggingDelegate):
     UNPROCESSED_PLOT_DATA_COLOR = 'g'
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
     ABSOLUTE_MAX_VALUE_SCALE = 300.0
-    FFT_MAX_VALUE_SCALE = 5.0
+    FFT_MAX_VALUE_SCALE = 0.5
 
     def __init__(self):
         self.view = pyqtgraph.GraphicsView()
@@ -103,14 +103,14 @@ class GUI(GraphicalDebuggingDelegate):
                 # The first queue is the unmodified data, which sets our starting bound and padding parameters
                 oldest_time_allowed = t_data[0]
                 # If we do not have a full screen of data yet, pre-pad with np.nan as filler to maintain uniformity.
-                time_to_pad = self.MAIN_PLOT_TIME_WIDTH - (t_data[-1] - t_data[0])
+                time_to_pad = self.MAIN_PLOT_TIME_WIDTH - max(t_data[-1] - t_data[0], 0)
             # Iterate through the higher level plots and set the data item data
             for plot in self.plots:
                 assert len(queues) == len(plot.listDataItems()), "mismatch in queues and data items"
                 data_item = plot.listDataItems()[i]
                 if i != 0 or plot in self.plots_without_padding:
                     # Never pass just 1 item since this can't be graphed by FFT methods etc.
-                    data_item.setData(t_data if len(t_data) > 1 else [], v_data if len(v_data) else [])
+                    data_item.setData(t_data if len(t_data) > 1 else [], v_data if len(v_data) > 1 else [])
                 else:
                     data_item.setData(*self.pad_samples(t_data, v_data, time_to_pad))
 

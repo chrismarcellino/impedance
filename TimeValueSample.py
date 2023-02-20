@@ -86,19 +86,30 @@ class TimeValueSampleQueue:
         # Generate the result sample list, using the uniform times
         result = []
         if resample:
-            # Attempt to align the data to the nearest original sample to preserve any metadata.
-            values = np.array([sample.v for sample in self._queue])
-            resampled_times_values_tuple = scipy.signal.resample(values, num_samples, times)
-            # Make a copy to we can cull as we go to decrease running time (n log n instead of n^2).
+            # Iterate through values and add extra samples corresponding to the missing samples. Also attempt to
+            # align the data to the nearest original sample to preserve any metadata. For missing samples, we use
+            # a simple average.
             queue = self._queue.copy()
-            for v, t in zip(*resampled_times_values_tuple):
+            last_value = None
+            for t in aligned_times:
+                # store the last value for use in averaging
+                if len(queue) > 0:
+                    last_value = queue[0].v
                 while len(queue) > 0 and queue[0].t < t - desired_period / 2.0:
                     # This should be uncommon as this would indicate extra samples
                     queue.popleft()
                 if len(queue) > 0 and queue[0].t < t + desired_period / 2.0:
-                    aligned_sample = queue.popleft().copy_with(t, v)
+                    aligned_sample = queue.popleft().copy_with(new_time=t)
                 else:
-                    aligned_sample = TimeValueSample(t, v)
+                    next_value = queue[0].v if len(queue) > 0 else None
+                    if last_value and next_value:
+                        new_value = (last_value + next_value) / 2.0
+                    elif last_value:
+                        new_value = last_value
+                    elif next_value:
+                        new_value = next_value
+
+                    aligned_sample = TimeValueSample(t, new_value)
                 result.append(aligned_sample)
         else:
             for aligned_time, sample in zip(aligned_times, self._queue):
