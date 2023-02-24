@@ -14,7 +14,7 @@ class GUI(GraphicalDebuggingDelegate):
     MAX_REFRESH_RATE = 1.0 / 30.0  # in seconds
     UNPROCESSED_PLOT_DATA_COLOR = 'g'
     PROCESSED_PLOT_DATA_COLORS = ['r', 'b', 'c', 'm', 'y', 'w']
-    ABSOLUTE_MAX_VALUE_SCALE = 700.0  # Live human 300 is more appropriate but for Cadaver near 1000
+    ABSOLUTE_MAX_VALUE_SCALE = 1000.0  # Live human 300 is more appropriate but for Cadaver near 1000
     FFT_MAX_VALUE_SCALE = 0.5
 
     def __init__(self):

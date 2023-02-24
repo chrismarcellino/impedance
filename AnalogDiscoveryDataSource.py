@@ -15,7 +15,7 @@ class AnalogDiscoveryDataSource(DataSource):
     MEASUREMENT_FREQUENCY = 50e3  # DUT stimulus (not polling) frequency in hz that the impedance is measured at
     POLLING_FREQUENCY = 1e2  # polling frequency (in hz) that determines how often the impedance above is measured
     POLLING_PERIOD = 1.0 / POLLING_FREQUENCY  # converted from hz to seconds
-    REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms; may be ignored if AD IA adapter is used
+    REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms
     SAMPLING_VOLTS = 127e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mA on the DUT in human subjects at 100kHz, and 0.5 mA at freq. > 50kHz
     # assuming a 100 ohm resistor and a 80 ohm minimum impedance even with invasive needles, this permits 90 mV RMS
