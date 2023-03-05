@@ -245,7 +245,7 @@ class DataProcessor:
         # both values defined to be in [0,100]
         vae_score: int = 0
         sqi: int = 0
-        sqi_alarm = False
+        vae_alarm = False
 
         # Calculate the VAE score using paired *increases* in both the min. and max. (percentile) values to suggest
         # air entrainment with stable mechanical ventilation. Compare the current value to the last 10 respirations
@@ -266,6 +266,9 @@ class DataProcessor:
                 if ratio > 1.0:
                     ratio = 1.0 / ratio
                 vae_score += round(max(1.0 - ratio, 0.0) * 50)
+
+        if vae_score >= 50:
+            vae_alarm = True
 
         # SQI is defined as zero if there is no respiratory cycle detectable (throughout the entire past interval).
         if self.detected_respiratory_period_length and len(self.respiratory_cycle_data) > 0:
@@ -301,13 +304,13 @@ class DataProcessor:
             aggregate_trend_sqi_component = round(percentile_sqi_component +
                                                   absolute_sqi_component +
                                                   tidal_volume_variance_sqi_component)
-            if sqi_alarm and aggregate_trend_sqi_component < 20:
+            if vae_alarm and aggregate_trend_sqi_component < 20:
                 aggregate_trend_sqi_component += 10
             sqi += aggregate_trend_sqi_component
 
         # In lieu of supporting output to a clinical monitor via serial, log the current data to the console.
         print(f"Current VAE score: {vae_score} (SQI {sqi})")
-        if sqi_alarm:
+        if vae_alarm:
             self.sound_alarm()
 
     def sound_alarm(self):
