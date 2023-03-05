@@ -50,6 +50,13 @@ class DataProcessor:
     SAMPLE_ANALYSIS_INTERVAL = 20.0
     SAMPLE_ANALYSIS_PERIOD = 10.0
 
+    # For respiratory analysis and other purposes requiring smoothed data, reduce the data to n samples per seconds.
+    SMOOTHED_DATA_FREQUENCY = 4.0
+    # To avoid finding minute noise in random/flat signals, require an arbitrary minimum number of ohms to recognize
+    # a breath; a typical breath would be closer to 3-10 ohms peak-to-peak, and should be independent of total system
+    # resistance.
+    MINIMUM_PEAK_DELTA_THRESHOLD = 1.0  # ohms, the amplitude (half of peak-to-peak)
+
     # We assume that a RR of 8 to 30 would reflect general anesthesia reasonably well across a range of ages, which
     # corresponds to a frequency (period) of 0.13 hz (7.5 s) and 0.5 hz (2 s) respectively.
     MIN_RESPIRATORY_FREQUENCY = 8.0 / 60.0
@@ -111,41 +118,49 @@ class DataProcessor:
     """
 
     def process_samples(self):
+        debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
+
         # Get the samples for the past sampling period, resampling if necessary to obtain time-interval aligned data.
         samples = self.sample_queue.copy_samples(desired_period=self.sampling_period)
-        self.graphical_debugging_delegate.graph_intermediate_sample_data("Uniform", samples)
+        debug_graph("Uniform", samples)
         # Get the evenly spaced, possibly resampled, impedance values as a numpy array
         values = np.array([sample.v for sample in samples])
+        times = np.array([sample.t for sample in samples])
 
-        # Determine the average to reject grossly non-physiological data (i.e. disconnection)
-        average = np.average(values)
-        average_plausible = self.MIN_PLAUSIBLE_IMPEDANCE < average < self.MAX_PLAUSIBLE_IMPEDANCE
+        # Next perform a gross time averaging for use in the respiratory calculations
+        length_of_samples_in_seconds = len(values) * self.sampling_period
+        smoothed_number_of_samples = round(length_of_samples_in_seconds * self.SMOOTHED_DATA_FREQUENCY)
+        smoothed_values, smoothed_times = signal.resample(values, smoothed_number_of_samples, times)
+        for t, v in zip(smoothed_times, smoothed_values):
+            debug_graph("Smoothed", [TimeValueSample(t=t, v=v)])
 
         # Perform a peak-based analysis to determine the respiratory cycles and see if each cycle correlates
         # reasonably with each other cycle in the same sample. Since we analyze strictly overlapping segments, we can
         # remove non-coincident peaks.
         min_respiratory_period = 1.0 / self.MAX_RESPIRATORY_FREQUENCY
-        min_respiratory_period_in_samples = min_respiratory_period / self.sampling_period
+        min_respiratory_period_in_samples = min_respiratory_period * self.SMOOTHED_DATA_FREQUENCY
         # Base the peak detection on wavelets around the size of the shortest acceptable breath
-        peak_indexes = signal.find_peaks_cwt(values, np.linspace(0, min_respiratory_period_in_samples, 8)[1:-1])
+        peak_indexes = signal.find_peaks_cwt(smoothed_values,
+                                             np.linspace(0, min_respiratory_period_in_samples, 8)[1:-1])   # strip first
         # Graph a short segment over the peak as a 3-point line for debugging/display purposes
         for peak_index in peak_indexes:
-            t = samples[peak_index].t
-            v = samples[peak_index].v
+            t = smoothed_times[peak_index]
+            v = smoothed_values[peak_index]
             flat_lines = [TimeValueSample(t - 0.5, v),
                           TimeValueSample(t, v),
                           TimeValueSample(t + 0.5, v)]
-            self.graphical_debugging_delegate.graph_intermediate_sample_data("Peak " + str(peak_index),
-                                                                             flat_lines,
-                                                                             clear_first=True)
+            debug_graph("Peak " + str(peak_index), flat_lines, clear_first=True)
 
         # Next determine the mean distance and SD between the peaks
+        minimum_peak_threshold = np.average(smoothed_values) + self.MINIMUM_PEAK_DELTA_THRESHOLD
+        peak_times = []
+        if len(peak_indexes) >= 2:
+            for peak_index in peak_indexes:
+                if smoothed_values[peak_index] > minimum_peak_threshold:
+                    peak_times.append(smoothed_times[peak_index])
         average_period = None
         sd_period = None
-        if len(peak_indexes) >= 2:
-            peak_times = []
-            for peak_index in peak_indexes:
-                peak_times.append(samples[peak_index].t)
+        if len(peak_times) >= 2:
             delta_times = np.diff(peak_times)
             average_period = numpy.mean(delta_times)
             sd_period = numpy.std(delta_times)
@@ -154,10 +169,14 @@ class DataProcessor:
         # incomplete periods on the leading or trailing edge as these will be included in the previous or next sampling
         # interval since there is always at least a 2:1 overlap (SAMPLE_ANALYSIS_INTERVAL : SAMPLE_ANALYSIS_PERIOD).
         first_sample_timestamp = samples[0].t
-        average_frequency = 0.0
-        if average_period > 0:
-            average_frequency = 1.0 / average_period
-        if average_plausible and self.MIN_RESPIRATORY_FREQUENCY <= average_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
+        average_frequency = 1.0 / average_period if average_period else None
+        in_range = False
+        if average_frequency and self.MIN_RESPIRATORY_FREQUENCY <= average_frequency <= self.MAX_RESPIRATORY_FREQUENCY:
+            in_range = True
+
+        # Determine the average to reject grossly non-physiological data (i.e. disconnection)
+        average_plausible = self.MIN_PLAUSIBLE_IMPEDANCE < np.average(values) < self.MAX_PLAUSIBLE_IMPEDANCE
+        if average_plausible and in_range:
             print("Respiratory cycle detected with average frequency {:1.3f} hz (RR {:1.0f}, SD {:1.3f} hz).".format(
                 average_frequency,
                 average_frequency * 60.0,
@@ -186,15 +205,20 @@ class DataProcessor:
             # In the future, can also attempt to look for global "signature-based" evidence of VAE and store that as
             # instance variable state to be accounted for the VAE calculations here.
         else:
-            if average_plausible:
+            if average_plausible and average_frequency:
                 print(f"No respiratory cycle detected. (Average inter-peak frequency {average_frequency:1.3f} hz)")
+            elif average_plausible:
+                print(f"No respiratory cycle nor significant peaks detected.")
             else:
+                average = np.average(values)
                 print(f"No patient data detected; check cabling and connections. (Avg. impedance: {average:1.3f} ohms)")
             self.detected_respiratory_period_length = None
             self.detected_respiratory_period_sd = None
             self.first_detected_respiratory_cycle_time = None
 
     def store_data_for_new_slice(self, a_slice, timestamp):  # timestamp is in seconds
+        debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
+
         # Get min, max, 5%- and 95%-ile values for comparison
         data = RespiratoryCycleData(the_min=np.min(a_slice),
                                     the_max=np.max(a_slice),
@@ -208,7 +232,6 @@ class DataProcessor:
         debug_graph_samples = 100  # add arbitrary points within the segment to smooth the graphing
         for i in range(debug_graph_samples):
             offset = self.detected_respiratory_period_length * i / debug_graph_samples
-            debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
             debug_graph("Respiratory minimum peaks", [TimeValueSample(t=timestamp + offset, v=data.the_min)])
             debug_graph("Respiratory maximum peaks", [TimeValueSample(t=timestamp + offset, v=data.the_max)])
             debug_graph("Respiratory 5%-ile", [TimeValueSample(t=timestamp + offset, v=data.min_percentile)])
@@ -238,7 +261,6 @@ class DataProcessor:
             min_increase = current_data.min_percentile - average_min_percentile
             max_increase = current_data.max_percentile - average_max_percentile
             if min_increase > 0 and max_increase > 0:
-                # TODO: NEED TO INVESTIGATE FACTORS TO USE HERE FOR "10"
                 vae_score += round((min_increase + max_increase) / 10.0 * 50)
                 ratio = max_increase / min_increase
                 if ratio > 1.0:
