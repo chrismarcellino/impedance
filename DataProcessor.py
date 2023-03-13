@@ -293,7 +293,7 @@ class DataProcessor:
                 vae_alarm = True        # always alarm for blips
                 vae_score += 25 * blips
 
-        vae_score = min(vae_score, 100)
+        vae_score = round(min(vae_score, 100))
         if vae_score >= 75:
             vae_alarm = True
 
@@ -334,6 +334,8 @@ class DataProcessor:
             if vae_alarm and aggregate_trend_sqi_component < 20:
                 aggregate_trend_sqi_component += 10
             sqi += aggregate_trend_sqi_component
+
+        sqi = round(min(sqi, 100))
 
         # In lieu of supporting output to a clinical monitor via serial, log the current data to the console.
         print(f"Current VAE score: {vae_score} (SQI {sqi})")
