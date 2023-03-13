@@ -1,7 +1,6 @@
 # TimeValueSample.py
 from collections import deque
 import numpy as np
-import scipy
 from dataclasses import dataclass
 
 
@@ -106,9 +105,9 @@ class TimeValueSampleQueue:
                         new_value = (last_value + next_value) / 2.0
                     elif last_value:
                         new_value = last_value
-                    elif next_value:
+                    else:
                         new_value = next_value
-
+                    assert new_value
                     aligned_sample = TimeValueSample(t, new_value)
                 result.append(aligned_sample)
         else:

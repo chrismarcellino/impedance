@@ -33,6 +33,7 @@ class RespiratoryCycleData:
     max_percentile: float
     timestamp: float  #
     cycle_duration: float
+    blips: int
 
     def is_timestamp_coincident(self, timestamp):
         """
@@ -66,6 +67,8 @@ class DataProcessor:
 
     MIN_PLAUSIBLE_IMPEDANCE = 10
     MAX_PLAUSIBLE_IMPEDANCE = 3000
+
+    MINIMUM_BLIP_LENGTH = 0.3   # in seconds
 
     def __init__(self, sampling_period, graphical_debugging_delegate):
         self.sampling_period = sampling_period
@@ -101,8 +104,8 @@ class DataProcessor:
     Then, the simplest and most accurate method for determining the end-inspiratory and end-expiratory impedance
     (EII, EEI), is to find the min. and max. of the waveform within each period as we cannot use the actual
     filtered waveforms as they only very poorly represent the complex nature of the respiratory signal and mask
-    the offset ("DC" component.) However, to reduce noise artifact, we find the 5%- and 95%-ile value. (The
-    comparison of this to the actual min./max. are also used in the SQI.)
+    the offset ("DC" component.) However, to reduce noise artifact (and ignore blips), we find the 25%- and 75%-ile
+    value. (The comparison of this to the actual min./max. are also used in the SQI.)
 
     We then take each period and compare the EEI and EII from that in the prior …INTERVAL and use this to
     determine the likelihood of gross air entrainment. An increase in both EEI and EII as opposed to a change in
@@ -218,14 +221,30 @@ class DataProcessor:
 
     def store_data_for_new_slice(self, a_slice, timestamp):  # timestamp is in seconds
         debug_graph = self.graphical_debugging_delegate.graph_intermediate_sample_data
+        # Find any blips that do not correspond to the respiratory peak. Look for contiguous and brief signals above
+        # 90th percentile. We do not need to worry about any respiratory difference here since the magnitude of these
+        # greatly exceed the respiratory variation. (It is key that we are using the un-smoothed data.)
+        blip_cutoff = np.percentile(a_slice, 90)
+        blips = 0
+        blip_start = None
+        for value, i in enumerate(a_slice):
+            if value > blip_cutoff:
+                if not blip_start:
+                    blip_start = i
+            else:
+                if blip_start:
+                    if i - blip_start >= self.sampling_period * self.MINIMUM_BLIP_LENGTH:
+                        blips += 1
+                    blip_start = None
 
-        # Get min, max, 5%- and 95%-ile values for comparison
+        # Get min, max, 25%- and 75%-ile values for comparison
         data = RespiratoryCycleData(the_min=np.min(a_slice),
                                     the_max=np.max(a_slice),
-                                    min_percentile=np.percentile(a_slice, 5),
-                                    max_percentile=np.percentile(a_slice, 95),
+                                    min_percentile=np.percentile(a_slice, 25),
+                                    max_percentile=np.percentile(a_slice, 75),
                                     timestamp=timestamp,
-                                    cycle_duration=self.detected_respiratory_period_length)
+                                    cycle_duration=self.detected_respiratory_period_length,
+                                    blips=blips)
         self.respiratory_cycle_data.append(data)
 
         # Graph the min. and max. for debugging purposes
@@ -234,8 +253,8 @@ class DataProcessor:
             offset = self.detected_respiratory_period_length * i / debug_graph_samples
             debug_graph("Respiratory minimum peaks", [TimeValueSample(t=timestamp + offset, v=data.the_min)])
             debug_graph("Respiratory maximum peaks", [TimeValueSample(t=timestamp + offset, v=data.the_max)])
-            debug_graph("Respiratory 5%-ile", [TimeValueSample(t=timestamp + offset, v=data.min_percentile)])
-            debug_graph("Respiratory 95%-ile", [TimeValueSample(t=timestamp + offset, v=data.max_percentile)])
+            debug_graph("Respiratory 25%-ile", [TimeValueSample(t=timestamp + offset, v=data.min_percentile)])
+            debug_graph("Respiratory 75%-ile", [TimeValueSample(t=timestamp + offset, v=data.max_percentile)])
 
         # Trim excess data to ensure a bounded computational time/storage (should only loop once at most)
         while len(self.respiratory_cycle_data) > self.MAX_RESPIRATORY_CYCLE_DATA_TO_KEEP:
@@ -267,6 +286,14 @@ class DataProcessor:
                     ratio = 1.0 / ratio
                 vae_score += round(max(1.0 - ratio, 0.0) * 50)
 
+            # Perform "blip" detection to find large solitary transient air boluses
+            blips = np.sum([data.blips for data in recent_datas_except_current])
+            if blips > 0:
+                print(f"Blips detected ({blips}).")
+                vae_alarm = True        # always alarm for blips
+                vae_score += 25 * blips
+
+        vae_score = min(vae_score, 100)
         if vae_score >= 50:
             vae_alarm = True
 

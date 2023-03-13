@@ -18,7 +18,7 @@ class AnalogDiscoveryDataSource(DataSource):
     REFERENCE_RESISTOR_RESISTANCE = 100  # in Ohms
     SAMPLING_VOLTS = 127e-3  # half of the peak-to-peak value in volts (i.e. peak-to-0 volts)
     # do not use more than 1 mA on the DUT in human subjects at 100kHz, and 0.5 mA at freq. > 50kHz
-    # assuming a 100 ohm resistor and a 80 ohm minimum impedance even with invasive needles, this permits 90 mV RMS
+    # assuming a 100 ohm resistor and an 80 ohm minimum impedance even with invasive needles, this permits 90 mV RMS
     # which is 127 mA (amplitude i.e. peak-to-0 volts).
     MINIMUM_PERIODS_TO_CAPTURE = 32  # to average
 
