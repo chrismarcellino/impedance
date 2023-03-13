@@ -294,7 +294,7 @@ class DataProcessor:
                 vae_score += 25 * blips
 
         vae_score = min(vae_score, 100)
-        if vae_score >= 50:
+        if vae_score >= 75:
             vae_alarm = True
 
         # SQI is defined as zero if there is no respiratory cycle detectable (throughout the entire past interval).
