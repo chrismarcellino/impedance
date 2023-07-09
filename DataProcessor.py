@@ -340,11 +340,12 @@ class DataProcessor:
         # In lieu of supporting output to a clinical monitor via serial, log the current data to the console.
         print(f"Current VAE score: {vae_score} (SQI {sqi})")
         if vae_alarm:
+            print("*** AIR EMBOlISM ALERT ***")
             self.sound_alarm()
 
     def sound_alarm(self):
         if sys.platform.startswith("darwin"):
-            os.system('say "air embolism alert"')
+            os.system('say "air embolism alert"&')
         else:
             print("\a")  # play a simple bell for non-Mac users (a production design would feed into a clinical monitor)
 
