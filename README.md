@@ -1,5 +1,6 @@
 # impedance
-Anesthesia chest physiology monitoring
+Anesthesia chest physiology and venous air embolism monitoring.
+Please see accompanying manuscript. 
 
 # Prerequisites
 1) Recent python3 (on macOS, install Xcode and run once to install developer tools so that system python3 is installed)
