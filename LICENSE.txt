@@ -1,3 +1,4 @@
+(1-clause BSD License, https://opensource.org/license/bsd-1-clause)
 Copyright (c) 2023-2025
 Chris Marcellino, et al. All rights reserved.
 
